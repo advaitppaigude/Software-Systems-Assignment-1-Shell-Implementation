@@ -12,6 +12,7 @@ int main(int argc, char *argv[]){
     ///Stores the number of arguments
     int argsc;
 
+    ///Shared REPL loop (Person 1: redirection/pipes/execution | Person 2: lwd/cd/batches/subshells)
     while (1) {
         read_command_line(line);
 

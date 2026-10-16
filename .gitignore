@@ -1,1 +1,14 @@
+# Compiled executables and object files
+s3
+src/s3
+*.o
+*.out
+a.out
 
+# Local testing directory
+testing/
+
+# Coursework reference documents
+Requirements_Assignment 1_ Shell Implementation.html
+Requirements_Assignment 1_ Shell Implementation_files/
+split.pdf

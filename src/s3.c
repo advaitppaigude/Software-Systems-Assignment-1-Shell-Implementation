@@ -1,5 +1,9 @@
 #include "s3.h"
 
+/// ===========================================================================
+/// PERSON 2: Prompt & cd (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
+/// ===========================================================================
+
 ///Simple for now, but will be expanded in a following section
 void construct_shell_prompt(char shell_prompt[])
 {
@@ -42,6 +46,14 @@ void parse_command(char line[], char *args[], int *argsc)
     args[*argsc] = NULL; ///args must be null terminated
 }
 
+/// (Add additional Person 2 functions below)
+
+
+
+/// ===========================================================================
+/// PERSON 1: Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
+/// ===========================================================================
+
 ///Launch related functions
 void child(char *args[], int argsc)
 {
@@ -65,3 +77,5 @@ void launch_program(char *args[], int argsc)
     ///so that the shell, not the child process,
     ///exits.
 }
+
+/// (Add additional Person 1 functions below)
