@@ -48,8 +48,8 @@ gcc -Wall -Wextra -g *.c -o s3
 
 | Team Member | Assigned Areas |
 | :--- | :--- |
-| **Person 1** | Basic execution, I/O Redirection (`<`, `>`, `>>`), Pipelines (`\|`), Process-management tests |
-| **Person 2** | `cd` built-in & dynamic prompt, Batched commands (`;`), Subshells & nesting (`(...)`), Command parsing tests |
+| **Advait (Person 1)** | Basic execution, I/O Redirection (`<`, `>`, `>>`), Pipelines (`\|`), Process-management tests |
+| **Srivathsan (Person 2)** | `cd` built-in & dynamic prompt, Batched commands (`;`), Subshells & nesting (`(...)`), Command parsing tests |
 
 ---
 
@@ -57,7 +57,7 @@ gcc -Wall -Wextra -g *.c -o s3
 
 See **[TASKS.md](./TASKS.md)** for the full interactive checkbox list of implementation tasks and test cases.
 
-| Sprint | Milestone / Focus | Person 1 Tasks | Person 2 Tasks | Branch(es) |
+| Sprint | Milestone / Focus | Advait (Person 1) Tasks | Srivathsan (Person 2) Tasks | Branch(es) |
 | :--- | :--- | :--- | :--- | :--- |
 | **Sprint 0** | **Setup & Section 1 (Basic Commands)** | Pair-program `launch_program`, `child`, and `exit` built-in; test basic commands | Pair-program `launch_program`, `child`, and `exit` built-in; test basic commands | `feat/sec1-basics` |
 | **Sprint 1** | **Sections 2 & 3 (Redirection + `cd`)** | Implement Section 2: `<`, `>`, `>>` redirection parsing & `open`/`dup2` execution | Implement Section 3: dynamic `getcwd` prompt, `init_lwd`, `is_cd`, and `run_cd` (`cd`, `cd -`, `cd <dir>`) | `feat/sec2-redirection`<br>`feat/sec3-cd-prompt` |

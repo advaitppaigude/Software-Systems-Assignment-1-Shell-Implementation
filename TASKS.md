@@ -30,7 +30,7 @@
 
 ## Sprint 1: Sections 2 & 3 — Redirection & `cd`
 
-### Person 1 — Section 2: Commands with Redirection (`feat/sec2-redirection`)
+### Advait (Person 1) — Section 2: Commands with Redirection (`feat/sec2-redirection`)
 - [ ] Declare redirection functions in `src/s3.h`
 - [ ] Implement `command_with_redirection(char line[])` to detect `<`, `>`, and `>>`
 - [ ] Implement parsing helper(s) to extract the redirection operator and target filename, and strip them from `args[]`
@@ -50,7 +50,7 @@
   - [ ] `grep June < txt/calendar.txt`
   - [ ] `tr a-z A-Z < txt/phrases.txt`
 
-### Person 2 — Section 3: Support for `cd` & Dynamic Prompt (`feat/sec3-cd-prompt`)
+### Srivathsan (Person 2) — Section 3: Support for `cd` & Dynamic Prompt (`feat/sec3-cd-prompt`)
 - [ ] Declare `cd` and `lwd` functions in `src/s3.h`
 - [ ] Implement `init_lwd(char lwd[])` using `getcwd()`
 - [ ] Update `construct_shell_prompt` and `read_command_line` to display the current working directory (e.g. `[/path/to/cwd s3]$ `)
@@ -78,7 +78,7 @@
 - [ ] Extract single-command execution logic (`cd` / redirection / basic command) into a reusable helper function
 - [ ] Agree on a parenthesis-aware delimiter splitting approach so `;` and `|` inside `(...)` are not split prematurely
 
-### Person 1 — Section 4: Commands with Pipes (`feat/sec4-pipes`)
+### Advait (Person 1) — Section 4: Commands with Pipes (`feat/sec4-pipes`)
 - [ ] Implement detection function for pipelined commands (`|`)
 - [ ] Implement tokenizer to split a pipeline into individual stage strings (ignoring `|` inside parentheses)
 - [ ] Implement pipeline launcher supporting arbitrary pipeline lengths ($N$ stages):
@@ -92,7 +92,7 @@
   - [ ] `ps aux | grep python | sort -k 3 -nr | head`
   - [ ] Verify mid-pipeline output redirection (`>`) behavior
 
-### Person 2 — Section 5: Batched Commands (`feat/sec5-batches`)
+### Srivathsan (Person 2) — Section 5: Batched Commands (`feat/sec5-batches`)
 - [ ] Implement detection/splitting for batched commands separated by `;` (ignoring `;` inside parentheses)
 - [ ] Ensure tokenization does not break when sub-commands also tokenize arguments (avoid nested `strtok` global-state bugs)
 - [ ] Execute each batched command/pipeline sequentially regardless of whether the previous command succeeded or failed
@@ -108,14 +108,14 @@
 
 ## Sprint 3: Sections 6 & 7 — Subshells & Nested Subshells (`feat/sec6-7-subshells`)
 
-### Person 2 — Subshell Parsing, Execution & Arbitrary Nesting (Sections 6 & 7)
+### Srivathsan (Person 2) — Subshell Parsing, Execution & Arbitrary Nesting (Sections 6 & 7)
 - [ ] Implement subshell detection for commands wrapped in `(...)`
 - [ ] Implement parenthesis-matching/stripping logic (using depth counter/stack) to support arbitrary nesting levels `((...))`
 - [ ] Update `main(int argc, char *argv[])` (or child subshell handler) so a spawned child `s3` process can execute a subshell command string
 - [ ] Verify environment isolation: `cd` or state changes inside `(...)` do not affect the parent shell after the subshell finishes
 - [ ] Write command parsing tests covering batches, pipes, whitespace edge cases, and deeply nested subshells
 
-### Person 1 — Pipeline Subshell Integration & Process-Management Tests
+### Advait (Person 1) — Pipeline Subshell Integration & Process-Management Tests
 - [ ] Support launching a subshell as a stage within a pipeline with `stdin`/`stdout` redirected to pipe ends
 - [ ] Verify subshells with file redirection (e.g. `(cd txt ; cat phrases.txt) > out.txt`)
 - [ ] Write process-management tests verifying no zombie processes or leaked file descriptors remain
@@ -131,10 +131,10 @@
 ## Sprint 4: Section 8 — Stretch Goals, Polish & Submission
 
 ### Candidate Stretch Goals (Select 1–2+ as a Pair)
-- [ ] **Combined Input & Output Redirection (Person 1):** Support `<` and `>`/`>>` in the same command (e.g. `sort < txt/phrases.txt > txt/sorted_output.txt`)
-- [ ] **Wildcard Globbing (Person 2):** Expand `*` and `?` filename patterns in command arguments
-- [ ] **Job Control (Person 1):** Background execution (`&`) and `fg` / `bg` built-ins
-- [ ] **Usability Enhancements (Person 2):** Command history, tab completion, or enhanced custom prompt
+- [ ] **Combined Input & Output Redirection (Advait - Person 1):** Support `<` and `>`/`>>` in the same command (e.g. `sort < txt/phrases.txt > txt/sorted_output.txt`)
+- [ ] **Wildcard Globbing (Srivathsan - Person 2):** Expand `*` and `?` filename patterns in command arguments
+- [ ] **Job Control (Advait - Person 1):** Background execution (`&`) and `fg` / `bg` built-ins
+- [ ] **Usability Enhancements (Srivathsan - Person 2):** Command history, tab completion, or enhanced custom prompt
 - [ ] **Stream Routing:** `tee`-like multi-output syntax
 
 ### Final Code Quality & Submission Checklist (Both)

@@ -40,15 +40,15 @@ void construct_shell_prompt(char shell_prompt[]);
 void parse_command(char line[], char *args[], int *argsc);
 
 /// ===========================================================================
-/// PERSON 2: cd & Prompt (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
-/// (Add Person 2 function declarations below)
+/// PERSON 2 (Srivathsan): cd & Prompt (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
+/// (Add Person 2 / Srivathsan function declarations below)
 /// ===========================================================================
 
 
 
 /// ===========================================================================
-/// PERSON 1: Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
-/// (Add Person 1 function declarations below)
+/// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
+/// (Add Person 1 / Advait function declarations below)
 /// ===========================================================================
 
 ///Child functions (add more as appropriate)

@@ -1,7 +1,7 @@
 #include "s3.h"
 
 /// ===========================================================================
-/// PERSON 2: Prompt & cd (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
+/// PERSON 2 (Srivathsan): Prompt & cd (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
 /// ===========================================================================
 
 ///Simple for now, but will be expanded in a following section
@@ -46,12 +46,12 @@ void parse_command(char line[], char *args[], int *argsc)
     args[*argsc] = NULL; ///args must be null terminated
 }
 
-/// (Add additional Person 2 functions below)
+/// (Add additional Srivathsan / Person 2 functions below)
 
 
 
 /// ===========================================================================
-/// PERSON 1: Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
+/// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
 /// ===========================================================================
 
 ///Launch related functions
@@ -78,4 +78,4 @@ void launch_program(char *args[], int argsc)
     ///exits.
 }
 
-/// (Add additional Person 1 functions below)
+/// (Add additional Advait / Person 1 functions below)
