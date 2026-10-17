@@ -63,7 +63,8 @@ void child(char *args[], int argsc)
     ///of the command specified in args[ARG_PROGNAME].
     ///For reference, see the code in lecture 3.
 
-    execvp(args[0], args);
+    execvp(args[ARG_PROGNAME], args);
+    exit(EXIT_FAILURE);
 }
 
 void launch_program(char *args[], int argsc)
@@ -74,6 +75,20 @@ void launch_program(char *args[], int argsc)
     ///In the child part of the code,
     ///call child(args, argv)
     ///For reference, see the code in lecture 2.
+
+    int rc = fork();
+
+    if (rc < 0) {
+        printf("fork failed\n");
+    }
+    else if (rc == 0) {
+        printf("Child (pid: %d)\n", getpid());
+        child(args, argc);
+    }
+    else {
+        printf("Parent (pid: %d)\n", getpid());
+        
+    }
 
     ///Handle the 'exit' command;
     ///so that the shell, not the child process,
