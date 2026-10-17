@@ -1,4 +1,5 @@
 #include "s3.h"
+#include <string.h>
 
 /// ===========================================================================
 /// PERSON 2 (Srivathsan): Prompt & cd (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
@@ -64,7 +65,9 @@ void child(char *args[], int argsc)
     ///For reference, see the code in lecture 3.
 
     execvp(args[ARG_PROGNAME], args);
-    exit(EXIT_FAILURE);
+    // wont reach the code below if execvp successful
+    perror("execvp");
+    _exit(EXIT_FAILURE);
 }
 
 void launch_program(char *args[], int argsc)
@@ -76,18 +79,26 @@ void launch_program(char *args[], int argsc)
     ///call child(args, argv)
     ///For reference, see the code in lecture 2.
 
-    int rc = fork();
-
-    if (rc < 0) {
-        printf("fork failed\n");
-    }
-    else if (rc == 0) {
-        printf("Child (pid: %d)\n", getpid());
-        child(args, argc);
+    if (args[ARG_PROGNAME] == NULL) {
+        return;
     }
     else {
-        printf("Parent (pid: %d)\n", getpid());
-        
+        if (strcmp(args[ARG_PROGNAME], "exit") == 0) {
+            exit(EXIT_SUCCESS);
+        }
+    
+        int rc = fork();
+    
+        if (rc < 0) {
+            printf("fork failed\n");
+        }
+        else if (rc == 0) {
+            printf("Child (pid: %d)\n", getpid());
+            child(args, argsc);
+        }
+        else {
+            printf("Parent (pid: %d)\n", getpid());
+        }
     }
 
     ///Handle the 'exit' command;
