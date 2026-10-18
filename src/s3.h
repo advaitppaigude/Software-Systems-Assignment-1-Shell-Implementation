@@ -35,8 +35,8 @@ static inline void reap()
 }
 
 ///Shell I/O and related functions (add more as appropriate)
-void read_command_line(char line[]);
-void construct_shell_prompt(char shell_prompt[]);
+void read_command_line(char line[], char lwd[]);
+void construct_shell_prompt(char shell_prompt[], char lwd[]);
 void parse_command(char line[], char *args[], int *argsc);
 
 /// ===========================================================================
@@ -44,6 +44,15 @@ void parse_command(char line[], char *args[], int *argsc);
 /// (Add Person 2 / Srivathsan function declarations below)
 /// ===========================================================================
 
+/// cd is goes into or out of a directory
+/// Initializes lwd with the starting current working directory (using getcwd)
+void init_lwd(char lwd[]);
+
+/// Returns 1 (true) if the command line is a 'cd' command, 0 (false) otherwise
+int is_cd(char line[]);
+
+/// Executes the 'cd' built-in command and updates lwd
+void run_cd(char *args[], int argsc, char lwd[]);
 
 /// ===========================================================================
 /// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)

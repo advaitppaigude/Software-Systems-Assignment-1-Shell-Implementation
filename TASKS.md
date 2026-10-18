@@ -51,20 +51,20 @@
   - [ ] `tr a-z A-Z < txt/phrases.txt`
 
 ### Srivathsan (Person 2) — Section 3: Support for `cd` & Dynamic Prompt (`feat/sec3-cd-prompt`)
-- [ ] Declare `cd` and `lwd` functions in `src/s3.h`
-- [ ] Implement `init_lwd(char lwd[])` using `getcwd()`
-- [ ] Update `construct_shell_prompt` and `read_command_line` to display the current working directory (e.g. `[/path/to/cwd s3]$ `)
-- [ ] Implement `is_cd(char line[])` to accurately detect `cd` commands (without false positives on commands starting with `"cd..."`)
-- [ ] Implement `run_cd(char *args[], int argsc, char lwd[])` using `chdir()`:
-  - [ ] Support standard relative/absolute paths (`cd txt`, `cd ..`, `cd .`)
-  - [ ] Support `cd` with no arguments (change to user's home directory via `getenv("HOME")`)
-  - [ ] Support `cd -` (switch to previous directory stored in `lwd` and update `lwd`)
-  - [ ] Update `lwd` before changing directory and handle invalid paths with `perror`
-- [ ] **Test Section 3 commands:**
-  - [ ] `cd txt` and verify prompt updates and `ls` lists `phrases.txt`
-  - [ ] `cd ..` and `cd .`
-  - [ ] `cd` (with no arguments) goes to home directory
-  - [ ] `cd -` toggles back and forth between the previous and current directories
+- [x] Declare `cd` and `lwd` functions in `src/s3.h`
+- [x] Implement `init_lwd(char lwd[])` using `getcwd()`
+- [x] Update `construct_shell_prompt` and `read_command_line` to display the current working directory (e.g. `[/path/to/cwd s3]$ `)
+- [x] Implement `is_cd(char line[])` to accurately detect `cd` commands (without false positives on commands starting with `"cd..."`)
+- [x] Implement `run_cd(char *args[], int argsc, char lwd[])` using `chdir()`:
+  - [x] Support standard relative/absolute paths (`cd txt`, `cd ..`, `cd .`)
+  - [x] Support `cd` with no arguments (change to user's home directory via `getenv("HOME")`)
+  - [x] Support `cd -` (switch to previous directory stored in `lwd` and update `lwd`)
+  - [x] Update `lwd` before changing directory and handle invalid paths with `perror`
+- [x] **Test Section 3 commands:**
+  - [x] `cd txt` and verify prompt updates and `ls` lists `phrases.txt`
+  - [x] `cd ..` and `cd .`
+  - [x] `cd` (with no arguments) goes to home directory
+  - [x] `cd -` toggles back and forth between the previous and current directories
 
 ### Sprint 1 Integration (Both)
 - [ ] Merge `feat/sec2-redirection` and `feat/sec3-cd-prompt` into `main`

@@ -6,16 +6,20 @@
 /// ===========================================================================
 
 ///Simple for now, but will be expanded in a following section
-void construct_shell_prompt(char shell_prompt[])
+void construct_shell_prompt(char shell_prompt[], char lwd[])
 {
-    strcpy(shell_prompt, "[s3]$ ");
+    char cwd[MAX_PROMPT_LEN - 7];
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        strcpy(cwd, lwd);
+    }
+    snprintf(shell_prompt, MAX_PROMPT_LEN, "[%s s3]$ ", cwd);
 }
 
 ///Prints a shell prompt and reads input from the user
-void read_command_line(char line[])
+void read_command_line(char line[], char lwd[])
 {
     char shell_prompt[MAX_PROMPT_LEN];
-    construct_shell_prompt(shell_prompt);
+    construct_shell_prompt(shell_prompt, lwd);
     printf("%s", shell_prompt);
 
     ///See man page of fgets(...)
@@ -48,6 +52,49 @@ void parse_command(char line[], char *args[], int *argsc)
 }
 
 /// (Add additional Srivathsan / Person 2 functions below)
+
+void init_lwd(char lwd[]){
+    if (getcwd(lwd, MAX_PROMPT_LEN - 6) == NULL){ //writes getcwd to lwd
+        perror("getcwd failed"); // 
+    }
+}
+
+int is_cd(char line[]){
+    int i = 0; //getting rid of leading spaces
+    while (line[i] == ' ') {
+        i++;
+    }
+    if (line[i] =='c' && line[i+1] == 'd' && (line[i+2] == ' ' || line[i+2] == '\0')) {
+        return 1;
+    }else{
+        return 0;
+    }
+}
+
+void run_cd(char *args[], int argsc, char lwd[]){
+    // Save current directory
+    char temp[MAX_PROMPT_LEN - 6];
+    getcwd(temp, sizeof(temp));
+
+    int rc;
+    // Situation 1: cd (change to home directory)
+    if ((argsc == 1) && (args[1] == NULL)){
+        rc = chdir(getenv("HOME"));
+    } else if ((argsc == 2) && strcmp(args[1], "-") == 0){
+        // Situation 2: cd - (go back to previous lwd)
+        rc = chdir(lwd);
+    } else {
+        // Situation 3 & 4: cd .. or cd <folder>
+        rc = chdir(args[1]);
+    }
+
+    // Only update lwd if chdir succeeded (returned 0)
+    if (rc == 0) {
+        strcpy(lwd, temp);
+    } else {
+        perror("cd failed");
+    }
+}
 
 
 
