@@ -7,24 +7,24 @@
 ## Sprint 0: Setup & Section 1 — Basic Commands (`feat/sec1-basics`)
 
 ### Setup & Environment (Both)
-- [ ] Clone repository and verify `gcc -Wall -Wextra -g *.c -o s3` compiles inside `src/`
-- [ ] Review starter code in `src/s3main.c`, `src/s3.h`, and `src/s3.c`
-- [ ] Review Lectures 2 & 3 on `fork()`, `execvp()`, and `wait()`
+- [x] Clone repository and verify `gcc -Wall -Wextra -g *.c -o s3` compiles inside `src/`
+- [x] Review starter code in `src/s3main.c`, `src/s3.h`, and `src/s3.c`
+- [x] Review Lectures 2 & 3 on `fork()`, `execvp()`, and `wait()`
 
 ### Section 1 Implementation (Both — Pair Programming)
-- [ ] Implement `child(char *args[], int argsc)` using `execvp()` and handle execution errors (`perror` + `exit`)
-- [ ] Implement `launch_program(char *args[], int argsc)` using `fork()`
-- [ ] Handle built-in `exit` command so the parent shell exits cleanly
-- [ ] Handle empty input lines (pressing Enter with no command) without crashing or spawning stray processes
+- [x] Implement `child(char *args[], int argsc)` using `execvp()` and handle execution errors (`perror` + `exit`)
+- [x] Implement `launch_program(char *args[], int argsc)` using `fork()`
+- [x] Handle built-in `exit` command so the parent shell exits cleanly
+- [x] Handle empty input lines (pressing Enter with no command) without crashing or spawning stray processes
 
 ### Section 1 Verification Tests
-- [ ] `whoami`, `pwd`, `ls`, `ls -R`, `cal`, `cal -y`, `clear`
-- [ ] `man cat` and `less txt/phrases.txt` (interactive commands)
-- [ ] `cat txt/phrases.txt`, `uniq txt/phrases.txt`, `wc txt/phrases.txt`, `sort txt/phrases.txt`
-- [ ] `grep burn txt/phrases.txt` and `grep -n burn txt/phrases.txt`
-- [ ] `cp`, `touch`, `chmod`, `ls -l` on test files
-- [ ] `exit` terminates the `s3` shell session
-- [ ] Merge `feat/sec1-basics` into `main`
+- [x] `whoami`, `pwd`, `ls`, `ls -R`, `cal`, `cal -y`, `clear`
+- [x] `man cat` and `less txt/phrases.txt` (interactive commands)
+- [x] `cat txt/phrases.txt`, `uniq txt/phrases.txt`, `wc txt/phrases.txt`, `sort txt/phrases.txt`
+- [x] `grep burn txt/phrases.txt` and `grep -n burn txt/phrases.txt`
+- [x] `cp`, `touch`, `chmod`, `ls -l` on test files
+- [x] `exit` terminates the `s3` shell session
+- [x] Merge `feat/sec1-basics` into `main`
 
 ---
 

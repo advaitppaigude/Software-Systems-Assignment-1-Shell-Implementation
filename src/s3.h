@@ -45,7 +45,6 @@ void parse_command(char line[], char *args[], int *argsc);
 /// ===========================================================================
 
 
-
 /// ===========================================================================
 /// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
 /// (Add Person 1 / Advait function declarations below)

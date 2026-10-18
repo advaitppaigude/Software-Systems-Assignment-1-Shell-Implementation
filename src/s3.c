@@ -93,11 +93,7 @@ void launch_program(char *args[], int argsc)
             printf("fork failed\n");
         }
         else if (rc == 0) {
-            printf("Child (pid: %d)\n", getpid());
             child(args, argsc);
-        }
-        else {
-            printf("Parent (pid: %d)\n", getpid());
         }
     }
 
