@@ -99,6 +99,27 @@ void run_cd(char *args[], int argsc, char lwd[]){
     }
 }
 
+void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count) {
+    int i = 0;
+    int shell_depth = 0; //tracks the need for subshells
+    //initialisation of parameters
+    *batch_count = 0;
+    batch_cmds[(*batch_count)++] = &line[0];
+
+    while (line[i] != '\0') { //looping until command terminates
+        if (line[i] == '(') { //found subshell
+            shell_depth++;
+        } else if (line[i] == ')') { //end of subshell
+            shell_depth--;
+        } else if (line[i] == ';' && shell_depth == 0 && *batch_count < MAX_ARGS - 1) { //normal sec5 operation
+            line[i] = '\0';
+            batch_cmds[(*batch_count)++] = &line[i + 1]; // start of the next command
+        }
+        i++;
+    }
+    batch_cmds[*batch_count] = NULL; //terminate list
+}
+
 
 
 /// ===========================================================================

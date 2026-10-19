@@ -70,6 +70,8 @@ int is_cd(char line[]);
 /// Executes the 'cd' built-in command and updates lwd
 void run_cd(char *args[], int argsc, char lwd[]);
 
+/// Splits multi-command statements and performs actions sequentially 
+void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count);
 /// ===========================================================================
 /// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
 /// (Add Person 1 / Advait function declarations below)

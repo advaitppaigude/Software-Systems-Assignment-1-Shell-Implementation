@@ -269,15 +269,78 @@ else
 fi
 
 # ==============================================================================
+# PART 4: Section 5 — Batched Commands (;)
+# ==============================================================================
+section "4. Section 5 — Batched Commands (;)"
+
+# Test 1: Multiple sequential basic commands in a batch
+OUT_BATCH_BASIC=$(run_s3_raw "echo alpha ; echo beta ; echo gamma\nexit" | strip_prompts)
+if [[ "$OUT_BATCH_BASIC" == $'alpha\nbeta\ngamma' ]]; then
+    pass "Sequential batched basic commands ('echo alpha ; echo beta ; echo gamma')"
+else
+    fail "Sequential batched basic commands failed" "Got: $OUT_BATCH_BASIC"
+fi
+
+# Test 2: TASKS.md test — Batch containing 'cd' followed by a command in the new directory ('cd txt ; ls ; cd -')
+OUT_BATCH_CD=$(run_s3_raw "cd txt ; ls ; cd - ; pwd\nexit" | strip_prompts)
+EXPECTED_BATCH_CD="phrases.txt"$'\n'"$SRC_DIR"
+if [[ "$OUT_BATCH_CD" == "$EXPECTED_BATCH_CD" ]]; then
+    pass "Batched 'cd' & commands ('cd txt ; ls ; cd - ; pwd')"
+else
+    fail "Batched 'cd' & commands failed" "Expected:\n$EXPECTED_BATCH_CD\nGot:\n$OUT_BATCH_CD"
+fi
+
+# Test 3: TASKS.md test — Batch with mkdir, file processing/redirection, and echo
+OUT_BATCH_REDIR=$(run_s3_in_dir "$TEST_TMP/student" "mkdir results ; sort txt/phrases.txt > results/rev_sort_phr.txt ; echo Processing complete.\nexit" | strip_prompts)
+if [[ "$OUT_BATCH_REDIR" == "Processing complete." && -f "$TEST_TMP/student/results/rev_sort_phr.txt" ]] && cmp -s <(sort "$SRC_DIR/txt/phrases.txt") "$TEST_TMP/student/results/rev_sort_phr.txt"; then
+    pass "Batched mkdir + redirection + echo ('mkdir results ; sort txt/phrases.txt > results/rev_sort_phr.txt ; echo Processing complete.')"
+else
+    fail "Batched mkdir + redirection + echo failed" "Got: '$OUT_BATCH_REDIR'"
+fi
+
+# Test 4: TASKS.md requirement — Next command in batch executes even if previous command fails
+OUT_BATCH_FAIL=$( (run_s3_raw "nonexistent_batch_cmd_123 ; echo BATCH_CONTINUED ; cd bad_dir_123 ; echo AFTER_BAD_CD\nexit") 2>&1 | strip_prompts )
+if grep -q "BATCH_CONTINUED" <<<"$OUT_BATCH_FAIL" && grep -q "AFTER_BAD_CD" <<<"$OUT_BATCH_FAIL"; then
+    pass "Batch continues executing subsequent commands even when a command or 'cd' fails"
+else
+    fail "Batch stopped or failed after an erroring command" "Got: $OUT_BATCH_FAIL"
+fi
+
+# Test 5: TASKS.md requirement — Parenthesis-aware splitting (ignores ';' inside '(...)')
+cat << 'EOF' > "$TEST_TMP/batch_paren_test.c"
+#include "s3.h"
+#include <string.h>
+
+int main(void) {
+    char line[MAX_LINE] = "echo start ; (cd /var/log ; cat syslog) ; date";
+    char *batch_cmds[MAX_ARGS];
+    int batch_count = 0;
+
+    parse_batched_commands(line, batch_cmds, &batch_count);
+    if (batch_count != 3) return 1;
+    if (strcmp(batch_cmds[0], "echo start ") != 0) return 2;
+    if (strcmp(batch_cmds[1], " (cd /var/log ; cat syslog) ") != 0) return 3;
+    if (strcmp(batch_cmds[2], " date") != 0) return 4;
+    return 0;
+}
+EOF
+
+if gcc -Wall -Wextra -I"$SRC_DIR" "$TEST_TMP/batch_paren_test.c" "$SRC_DIR/s3.c" -o "$TEST_TMP/batch_paren_test" 2>/dev/null && "$TEST_TMP/batch_paren_test"; then
+    pass "Parenthesis-aware splitting: ';' inside '(...)' is not split prematurely"
+else
+    fail "Parenthesis-aware splitting check failed"
+fi
+
+# ==============================================================================
 # Summary
 # ==============================================================================
-section "Overall Test Summary (Sprint 0 & Sprint 1: Sections 0–3)"
+section "Overall Test Summary (Sections 0, 1, 2, 3, and 5)"
 echo -e "  ${GREEN}Passed:   $PASSED${NC}"
 echo -e "  ${RED}Failed:   $FAILED${NC}"
 echo ""
 
 if [[ $FAILED -eq 0 ]]; then
-    echo -e "${GREEN}All Sprint 0 & Sprint 1 (Sections 0–3) tests passed!${NC}"
+    echo -e "${GREEN}All Sections 0, 1, 2, 3, and 5 tests passed!${NC}"
     exit 0
 else
     echo -e "${RED}Some tests failed. Please review the output above.${NC}"

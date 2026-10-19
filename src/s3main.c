@@ -20,22 +20,29 @@ int main(int argc, char *argv[]){
     int redir_status;
     Redirection redir;
 
+    //stores batched input commands
+    char *batch_cmds[MAX_ARGS];
+    int batch_count;
+
     ///Shared REPL loop (Advait: redirection/pipes/execution | Srivathsan: lwd/cd/batches/subshells)
     while (1) {
         read_command_line(line, lwd);
+        parse_batched_commands(line, batch_cmds, &batch_count);
 
-        if (is_cd(line)) {
-            parse_command(line, args, &argsc);
-            run_cd(args, argsc, lwd);
-        }
-        else {
-            parse_command(line, args, &argsc);
+        for (int i = 0; i < batch_count; i++){
+            if (is_cd(batch_cmds[i])) {
+                parse_command(batch_cmds[i], args, &argsc);
+                run_cd(args, argsc, lwd);
+            }
+            else {
+                parse_command(batch_cmds[i], args, &argsc);
 
-            redir_status = parse_redirection(args, &argsc, &redir);
+                redir_status = parse_redirection(args, &argsc, &redir);
 
-            if (redir_status == 0) {
-                launch_program(args, argsc, &redir);
-                reap();
+                if (redir_status == 0) {
+                    launch_program(args, argsc, &redir);
+                    reap();
+                }
             }
         }
     }

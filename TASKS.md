@@ -93,12 +93,12 @@
   - [ ] Verify mid-pipeline output redirection (`>`) behavior
 
 ### Srivathsan (Person 2) — Section 5: Batched Commands (`feat/sec5-batches`)
-- [ ] Implement detection/splitting for batched commands separated by `;` (ignoring `;` inside parentheses)
-- [ ] Ensure tokenization does not break when sub-commands also tokenize arguments (avoid nested `strtok` global-state bugs)
-- [ ] Execute each batched command/pipeline sequentially regardless of whether the previous command succeeded or failed
-- [ ] **Test Section 5 commands:**
-  - [ ] `mkdir results ; cat txt/phrases.txt | sort | tac > results/rev_sort_phr.txt ; echo "Processing complete."`
-  - [ ] Batch containing `cd` followed by a command in the new directory (e.g. `cd txt ; ls ; cd -`)
+- [x] Implement detection/splitting for batched commands separated by `;` (ignoring `;` inside parentheses)
+- [x] Ensure tokenization does not break when sub-commands also tokenize arguments (avoid nested `strtok` global-state bugs)
+- [x] Execute each batched command/pipeline sequentially regardless of whether the previous command succeeded or failed
+- [x] **Test Section 5 commands:**
+  - [x] `mkdir results ; cat txt/phrases.txt | sort | tac > results/rev_sort_phr.txt ; echo "Processing complete."`
+  - [x] Batch containing `cd` followed by a command in the new directory (e.g. `cd txt ; ls ; cd -`)
 
 ### Sprint 2 Integration (Both)
 - [ ] Merge `feat/sec4-pipes` and `feat/sec5-batches` into `main`
