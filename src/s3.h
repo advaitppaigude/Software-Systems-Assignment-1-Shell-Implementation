@@ -25,6 +25,22 @@ enum ArgIndex
     ARG_3,
 };
 
+// enum to represent redirection type
+typedef enum RedirectType {
+    REDIR_NONE,
+    REDIR_INPUT,
+    REDIR_OUTPUT,
+    REDIR_APPEND
+} RedirectType;
+
+
+typedef struct {
+    RedirectType type;
+    char *filename;
+} Redirection;
+
+
+
 ///With inline functions, the compiler replaces the function call 
 ///with the actual function code;
 ///inline improves speed and readability; meant for short functions (a few lines).
@@ -55,5 +71,13 @@ void parse_command(char line[], char *args[], int *argsc);
 void child(char *args[], int argsc);
 
 ///Program launching functions (add more as appropriate)
-void launch_program(char *args[], int argsc);
+void launch_program(char *args[], int argsc, Redirection *redir);
+
+
+int parse_redirection(char *args[], int *argsc, Redirection *redir);
+int apply_redirection(const Redirection *redir);
+
+int parse_pipe(char *args[], int *argsc, char **commands[], int *num_commands);
+int launch_pipeline(char **commands[], int num_commands);
+
 #endif

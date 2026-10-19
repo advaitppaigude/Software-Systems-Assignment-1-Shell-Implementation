@@ -45,6 +45,9 @@ void parse_command(char line[], char *args[], int *argsc)
     }
     
     args[*argsc] = NULL; ///args must be null terminated
+
+
+
 }
 
 /// (Add additional Srivathsan / Person 2 functions below)
@@ -70,7 +73,7 @@ void child(char *args[], int argsc)
     _exit(EXIT_FAILURE);
 }
 
-void launch_program(char *args[], int argsc)
+void launch_program(char *args[], int argsc, Redirection *redir)
 {
     ///Implement this function:
 
@@ -90,14 +93,20 @@ void launch_program(char *args[], int argsc)
         int rc = fork();
     
         if (rc < 0) {
-            printf("fork failed\n");
+            perror("fork");
         }
         else if (rc == 0) {
-            printf("Child (pid: %d)\n", getpid());
-            child(args, argsc);
+            //printf("Child (pid: %d)\n", getpid());
+            int redir_status = apply_redirection(redir);
+            if (redir_status < 0) {
+                _exit(EXIT_FAILURE);
+            }
+            else {
+                child(args, argsc);
+            }
         }
         else {
-            printf("Parent (pid: %d)\n", getpid());
+            //printf("Parent (pid: %d)\n", getpid());
         }
     }
 
@@ -107,3 +116,229 @@ void launch_program(char *args[], int argsc)
 }
 
 /// (Add additional Advait / Person 1 functions below)
+
+int parse_redirection(char *args[], int *argsc, Redirection *redir) {
+    redir->filename = NULL;
+    redir->type = REDIR_NONE;
+
+    int num_redir_tokens_seen = 0;
+    int redir_index = -1;
+
+    int comp_output = 0;
+    int comp_input = 0;
+    int comp_append = 0;
+
+    for (int i = 0; i < *argsc; i++) {
+        comp_output = strcmp(">", args[i]);
+        comp_input = strcmp("<", args[i]);
+        comp_append = strcmp(">>", args[i]);
+
+        if (comp_output == 0 || comp_input == 0 || comp_append == 0) {
+            if (i + 1 >= *argsc) { // no filename given
+                redir->type = REDIR_NONE;
+                redir->filename = NULL;
+                fprintf(stderr, "missing redirection filename \n");
+                return -1;
+            }
+            else if (strcmp(">", args[i + 1]) == 0 || strcmp("<", args[i + 1]) == 0 || strcmp(">>", args[i + 1]) == 0) {
+                redir->type = REDIR_NONE;
+                redir->filename = NULL;
+                fprintf(stderr, "cannot provide redirection operator as filename \n");
+                return -1;
+            }
+            else {
+                if (comp_output == 0) redir->type = REDIR_OUTPUT;
+                else if (comp_input == 0) redir->type = REDIR_INPUT;
+                else if (comp_append == 0) redir->type = REDIR_APPEND;
+                redir->filename = args[i + 1];
+                redir_index = i;
+                num_redir_tokens_seen++;
+            }
+        }
+    }
+
+    if (num_redir_tokens_seen > 1) {
+        redir->type = REDIR_NONE;
+        redir->filename = NULL;
+        fprintf(stderr, "multiple redirection tokens \n");
+        return -1;
+    }
+
+    if (redir_index > -1) {
+        for (int j = redir_index; j + 2 < *argsc; j++) {
+            args[j] = args[j + 2];
+        }
+        *argsc -= 2;
+        args[*argsc] = NULL;
+    }
+
+    return 0;
+}
+
+
+int apply_redirection(const Redirection *redir) {
+    int fd;
+    if (redir->type == REDIR_INPUT) { // <
+        fd = open(redir->filename, O_RDONLY);
+    }
+    else if (redir->type == REDIR_OUTPUT) { // >
+        fd = open(redir->filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    }
+    else if (redir->type == REDIR_APPEND) { // >>
+        fd = open(redir->filename, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    }
+    else if (redir->type == REDIR_NONE) {
+        return 0;
+    }
+    else {
+        perror("invalid redir type");
+        return -1;
+    }
+
+
+    if (fd < 0) {
+        perror("open failed");
+        return -1;
+    }
+
+    int dup_status;
+    if (redir->type == REDIR_INPUT) {
+        dup_status = dup2(fd, STDIN_FILENO);
+    }
+    else {
+        dup_status = dup2(fd, STDOUT_FILENO);
+    }
+
+    if (dup_status < 0) perror("redirect failed");
+
+    close(fd);
+    // input redir returns 0 on success, but output redir returns 1
+    // so need to map so that error/success output consistent regardless of redir type
+    return (dup_status <  0) ? -1 : 0;
+}
+
+
+/*
+
+int pipefd[2];
+int status = pipe(pipefd);
+status = 0 -> successful (-1 -> fail)
+pipefd[0] -> read end
+pipefd[1] -> write end
+
+
+in each child use dup2 but connect write end to STDOUT_FILENO, and read end to STDIN_FILENO
+
+
+*/
+
+
+int parse_pipe(char *args[], int *argsc, char **commands[], int *num_commands) {
+    *num_commands = 0; // ensuring its initialised
+    if (*argsc == 0) return 0; // skip launching a process
+    *num_commands = 1;
+    commands[0] = &args[0];
+    for (int i = 0; i < *argsc; i++) {
+        if (strcmp(args[i], "|") == 0) {
+            if (i == 0) {
+                // invalid
+                fprintf(stderr, "shell: malformed pipeline\n");
+                return -1;
+            }
+            else if (i == *argsc - 1) {
+                // invalid
+                fprintf(stderr, "shell: malformed pipeline\n");
+                return -1;
+            }
+            else if (strcmp(args[i + 1], "|") == 0) {
+                // invalid
+                fprintf(stderr, "shell: malformed pipeline\n");
+                return -1;
+            }
+            commands[*num_commands] = &args[i + 1];
+            (*num_commands)++;
+        }
+    }
+
+    for (int i = 1; i < *num_commands; i++) {
+        *(commands[i] - 1) = NULL;
+    }
+
+    return 0;
+}
+
+
+int count_args(char *args[]) {
+    int n = 0;
+    while (args[n] != NULL) {
+        n++;
+    }
+    return n;
+}
+
+
+int launch_pipeline(char **commands[], int num_commands) {
+    int pipefd[2];
+    int status = pipe(pipefd);
+    if (status == -1) {
+        perror("pipe failed");
+        return -1;
+    }
+    
+    int rc_a = fork();
+
+    if (rc_a < 0) {
+        perror("fork");
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -1;
+    }
+    else if (rc_a == 0) { // child A
+        if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+            perror("dup2");
+            _exit(EXIT_FAILURE);
+        }
+
+        close(pipefd[0]);
+        close(pipefd[1]);
+
+        // Execute commands[0] using child()
+        child(commands[0], count_args(commands[0]));
+    }
+    else {
+        //printf("Parent (pid: %d)\n", getpid());
+        int rc_b = fork();
+    
+        if (rc_b < 0) {
+            perror("fork");
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return -1;
+        }
+        else if (rc_b == 0) { // child B
+            if (dup2(pipefd[0], STDIN_FILENO) == -1) {
+                perror("dup2");
+                _exit(EXIT_FAILURE);
+            }
+            close(pipefd[0]);
+            close(pipefd[1]);
+
+            // Execute commands[1] using child()
+            child(commands[1], count_args(commands[1]));
+        }
+        else {
+            //printf("Parent (pid: %d)\n", getpid());
+            close(pipefd[0]);
+            close(pipefd[1]);
+            if (waitpid(rc_a, NULL, 0) == -1) {
+                perror("waitpid Child A");
+            }
+
+            if (waitpid(rc_b, NULL, 0) == -1) {
+                perror("waitpid Child B");
+            }
+        }
+    }
+
+    return 0;    
+}

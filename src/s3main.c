@@ -12,15 +12,21 @@ int main(int argc, char *argv[]){
     ///Stores the number of arguments
     int argsc;
 
+    int redir_status;
+    Redirection redir;
+
     ///Shared REPL loop (Advait: redirection/pipes/execution | Srivathsan: lwd/cd/batches/subshells)
     while (1) {
         read_command_line(line);
 
         parse_command(line, args, &argsc);
 
-        launch_program(args, argsc); 
+        redir_status = parse_redirection(args, &argsc, &redir);
 
-        reap();
+        if (redir_status == 0) {
+            launch_program(args, argsc, &redir); 
+            reap();
+        }
     }
 
     return 0;
