@@ -17,25 +17,27 @@ int main(int argc, char *argv[]){
     ///Stores the number of arguments
     int argsc;
 
+    int redir_status;
+    Redirection redir;
+
     ///Shared REPL loop (Advait: redirection/pipes/execution | Srivathsan: lwd/cd/batches/subshells)
     while (1) {
         read_command_line(line, lwd);
 
-        if(is_cd(line)){///Implement this function
+        if (is_cd(line)) {
             parse_command(line, args, &argsc);
-            run_cd(args, argsc, lwd); ///Implement this function
+            run_cd(args, argsc, lwd);
         }
-        //else if(command_with_redirection(line)){
-            ///Command with redirection
-           //parse_command(line, args, &argsc);
-           //launch_program_with_redirection(args, argsc);
-           //reap();
-        else ///Basic command
-       {
-           parse_command(line, args, &argsc);
-           launch_program(args, argsc);
-           reap();
-       }
+        else {
+            parse_command(line, args, &argsc);
+
+            redir_status = parse_redirection(args, &argsc, &redir);
+
+            if (redir_status == 0) {
+                launch_program(args, argsc, &redir);
+                reap();
+            }
+        }
     }
     return 0;
 }
