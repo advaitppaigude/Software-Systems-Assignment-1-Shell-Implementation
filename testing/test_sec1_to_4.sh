@@ -332,15 +332,65 @@ else
 fi
 
 # ==============================================================================
+# PART 5: Sections 6 & 7 — Subshells & Nested Subshells ((...))
+# ==============================================================================
+section "5. Sections 6 & 7 — Subshells & Nested Subshells ((...))"
+
+# Test 1: Standalone subshell environment isolation (cd inside subshell does NOT change parent cwd)
+OUT_SUB_ISO=$(run_s3_raw "(cd txt ; pwd ; ls)\npwd\nexit" | strip_prompts)
+EXPECTED_SUB_ISO="$SRC_DIR/txt"$'\n'"phrases.txt"$'\n'"$SRC_DIR"
+if [[ "$OUT_SUB_ISO" == "$EXPECTED_SUB_ISO" ]]; then
+    pass "Subshell environment isolation: '(cd txt ; pwd ; ls)' does not change parent shell's cwd ($SRC_DIR)"
+else
+    fail "Subshell environment isolation failed" "Expected:\n$EXPECTED_SUB_ISO\nGot:\n$OUT_SUB_ISO"
+fi
+
+# Test 2: Subshell inside a batched command (Section 6 spec example)
+OUT_SUB_BATCH=$(run_s3_in_dir "$TEST_TMP/student" "echo Start processing... ; (cd txt ; sort phrases.txt > sorted_phrases.txt) ; echo Finished writing sorted file. ; pwd\nexit" | strip_prompts)
+EXPECTED_SUB_BATCH=$'Start processing...\nFinished writing sorted file.\n'"$TEST_TMP/student"
+if [[ "$OUT_SUB_BATCH" == "$EXPECTED_SUB_BATCH" && -f "$TEST_TMP/student/txt/sorted_phrases.txt" ]] && cmp -s <(sort "$SRC_DIR/txt/phrases.txt") "$TEST_TMP/student/txt/sorted_phrases.txt"; then
+    pass "Subshell inside a batch ('echo Start... ; (cd txt ; sort phrases.txt > sorted_phrases.txt) ; echo Finished... ; pwd')"
+else
+    fail "Subshell inside a batch failed" "Expected:\n$EXPECTED_SUB_BATCH\nGot:\n$OUT_SUB_BATCH"
+fi
+
+# Test 3: Multiple subshells in the same batch
+OUT_MULTI_SUB=$(run_s3_raw "(cd txt ; pwd) ; (cd /tmp ; pwd) ; pwd\nexit" | strip_prompts)
+EXPECTED_MULTI_SUB="$SRC_DIR/txt"$'\n'"/tmp"$'\n'"$SRC_DIR"
+if [[ "$OUT_MULTI_SUB" == "$EXPECTED_MULTI_SUB" ]]; then
+    pass "Multiple subshells on the same line ('(cd txt ; pwd) ; (cd /tmp ; pwd) ; pwd')"
+else
+    fail "Multiple subshells on the same line failed" "Expected:\n$EXPECTED_MULTI_SUB\nGot:\n$OUT_MULTI_SUB"
+fi
+
+# Test 4: Section 7 — Nested subshells (2 levels of nesting)
+OUT_NESTED_2=$(run_s3_raw "(cd txt ; (pwd ; ls) ; pwd) ; pwd\nexit" | strip_prompts)
+EXPECTED_NESTED_2="$SRC_DIR/txt"$'\n'"phrases.txt"$'\n'"$SRC_DIR/txt"$'\n'"$SRC_DIR"
+if [[ "$OUT_NESTED_2" == "$EXPECTED_NESTED_2" ]]; then
+    pass "Section 7 Nested subshells (2 levels): '(cd txt ; (pwd ; ls) ; pwd) ; pwd'"
+else
+    fail "Section 7 Nested subshells (2 levels) failed" "Expected:\n$EXPECTED_NESTED_2\nGot:\n$OUT_NESTED_2"
+fi
+
+# Test 5: Section 7 — Deeply nested subshells (3+ levels with isolated cd at each level)
+OUT_NESTED_DEEP=$(run_s3_raw "(((echo deep_inner))) ; (cd txt ; (cd /tmp ; (pwd)) ; pwd) ; pwd\nexit" | strip_prompts)
+EXPECTED_NESTED_DEEP=$'deep_inner\n/tmp\n'"$SRC_DIR/txt"$'\n'"$SRC_DIR"
+if [[ "$OUT_NESTED_DEEP" == "$EXPECTED_NESTED_DEEP" ]]; then
+    pass "Section 7 Deeply nested subshells (3 levels): '(((echo deep_inner))) ; (cd txt ; (cd /tmp ; (pwd)) ; pwd) ; pwd'"
+else
+    fail "Section 7 Deeply nested subshells (3 levels) failed" "Expected:\n$EXPECTED_NESTED_DEEP\nGot:\n$OUT_NESTED_DEEP"
+fi
+
+# ==============================================================================
 # Summary
 # ==============================================================================
-section "Overall Test Summary (Sections 0, 1, 2, 3, and 5)"
+section "Overall Test Summary (Sections 0, 1, 2, 3, 5, 6, and 7)"
 echo -e "  ${GREEN}Passed:   $PASSED${NC}"
 echo -e "  ${RED}Failed:   $FAILED${NC}"
 echo ""
 
 if [[ $FAILED -eq 0 ]]; then
-    echo -e "${GREEN}All Sections 0, 1, 2, 3, and 5 tests passed!${NC}"
+    echo -e "${GREEN}All Sections 0, 1, 2, 3, 5, 6, and 7 tests passed!${NC}"
     exit 0
 else
     echo -e "${RED}Some tests failed. Please review the output above.${NC}"

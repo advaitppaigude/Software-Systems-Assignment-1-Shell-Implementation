@@ -24,13 +24,27 @@ int main(int argc, char *argv[]){
     char *batch_cmds[MAX_ARGS];
     int batch_count;
 
+    // need real path to shell as this needs to be used for subshells
+    char shell_path[MAX_LINE];
+    if (realpath(argv[0], shell_path) == NULL) {
+        strcpy(shell_path, argv[0]);
+    }
+
     ///Shared REPL loop (Advait: redirection/pipes/execution | Srivathsan: lwd/cd/batches/subshells)
     while (1) {
-        read_command_line(line, lwd);
+        if (argc > 1) {
+            strcpy(line, argv[1]); // Subshell mode: run command passed in argv[1]
+        } else {
+            read_command_line(line, lwd); // Normal interactive mode
+        }
+
         parse_batched_commands(line, batch_cmds, &batch_count);
 
         for (int i = 0; i < batch_count; i++){
-            if (is_cd(batch_cmds[i])) {
+            if (is_subshell(batch_cmds[i])){
+                launch_subshell(batch_cmds[i], shell_path);
+                reap();
+            }else if (is_cd(batch_cmds[i])) {
                 parse_command(batch_cmds[i], args, &argsc);
                 run_cd(args, argsc, lwd);
             }
@@ -44,6 +58,10 @@ int main(int argc, char *argv[]){
                     reap();
                 }
             }
+        }
+
+        if (argc > 1) {
+            break; // Subshell finishes after executing its command string once
         }
     }
     return 0;

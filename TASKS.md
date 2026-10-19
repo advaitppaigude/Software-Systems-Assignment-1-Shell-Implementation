@@ -109,11 +109,11 @@
 ## Sprint 3: Sections 6 & 7 — Subshells & Nested Subshells (`feat/sec6-7-subshells`)
 
 ### Srivathsan (Person 2) — Subshell Parsing, Execution & Arbitrary Nesting (Sections 6 & 7)
-- [ ] Implement subshell detection for commands wrapped in `(...)`
-- [ ] Implement parenthesis-matching/stripping logic (using depth counter/stack) to support arbitrary nesting levels `((...))`
-- [ ] Update `main(int argc, char *argv[])` (or child subshell handler) so a spawned child `s3` process can execute a subshell command string
-- [ ] Verify environment isolation: `cd` or state changes inside `(...)` do not affect the parent shell after the subshell finishes
-- [ ] Write command parsing tests covering batches, pipes, whitespace edge cases, and deeply nested subshells
+- [x] Implement subshell detection for commands wrapped in `(...)`
+- [x] Implement parenthesis-matching/stripping logic (using depth counter/stack) to support arbitrary nesting levels `((...))`
+- [x] Update `main(int argc, char *argv[])` (or child subshell handler) so a spawned child `s3` process can execute a subshell command string
+- [x] Verify environment isolation: `cd` or state changes inside `(...)` do not affect the parent shell after the subshell finishes
+- [x] Write command parsing tests covering batches, pipes, whitespace edge cases, and deeply nested subshells
 
 ### Advait (Person 1) — Pipeline Subshell Integration & Process-Management Tests
 - [ ] Support launching a subshell as a stage within a pipeline with `stdin`/`stdout` redirected to pipe ends
@@ -121,9 +121,9 @@
 - [ ] Write process-management tests verifying no zombie processes or leaked file descriptors remain
 
 ### Sprint 3 Verification Tests & Core 70% Sign-off (Both)
-- [ ] `echo "Start processing..." ; (cd /var/log ; cat syslog | sort > sorted_syslog.txt) ; echo "Finished writing sorted log." ; date`
+- [x] `echo "Start processing..." ; (cd /var/log ; cat syslog | sort > sorted_syslog.txt) ; echo "Finished writing sorted log." ; date`
 - [ ] `(cd /var/log ; cat syslog) | sort | head`
-- [ ] Nested subshells test: e.g. `(cd txt ; (cat phrases.txt | grep burn) | wc -l) ; pwd` (verify `pwd` is unchanged)
+- [x] Nested subshells test: e.g. `(cd txt ; (cat phrases.txt | grep burn) | wc -l) ; pwd` (verify `pwd` is unchanged)
 - [ ] Merge `feat/sec6-7-subshells` into `main`
 
 ---

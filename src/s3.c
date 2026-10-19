@@ -120,8 +120,48 @@ void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count) {
     batch_cmds[*batch_count] = NULL; //terminate list
 }
 
+int is_subshell(char line[]){
+   int start, end;
+    return find_subshell_bounds(line, &start, &end);
+}
 
+void launch_subshell(char line[], char shell_path[]){
+    
+    int start, end;
+    if (find_subshell_bounds(line, &start, &end)){
+        line[end] = '\0'; // replace closing ')' with '\0'
+        char *sub_args[3] = { shell_path, &line[start + 1], NULL };
+        Redirection no_redir = { REDIR_NONE, NULL };
+        launch_program(sub_args, 2, &no_redir);
+    }
+}
 
+int find_subshell_bounds(char line[], int *start, int *end){
+    ///get rid of starting and ending ()
+    int i = 0; //getting rid of leading spaces
+    while (line[i] == ' ') {
+        i++;
+    }
+
+    if (line[i] != '('){ // no subshell
+        return 0;
+    }
+    *start = i;
+    int shell_depth = 0;
+    while (line[i] != '\0') {
+        if (line[i] == '(') {
+            shell_depth++;
+        } else if (line[i] == ')') {
+            shell_depth--;
+            if (shell_depth == 0) {
+                *end = i; // make end of subshell which will be replaced with \0
+                return 1;
+            }
+        }
+        i++;
+    }
+    return 0;
+}
 /// ===========================================================================
 /// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
 /// ===========================================================================

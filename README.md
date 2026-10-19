@@ -85,6 +85,24 @@ From the repository root:
 - **Dynamic Shell Prompt (`construct_shell_prompt`):**
   - Queries `getcwd()` before each prompt render (falling back to `lwd` if needed) and formats the prompt string via `snprintf(shell_prompt, MAX_PROMPT_LEN, "[%s s3]$ ", cwd)`.
 
+### 4. Section 5: Batched Commands (`;`)
+- **Top-Level Semicolon Splitting (`parse_batched_commands`):**
+  - Scans the raw command line character-by-character while maintaining a parenthesis nesting counter (`shell_depth`), incrementing on `'('` and decrementing on `')'`.
+  - Splits the line by replacing `';'` with `'\0'` **only when `shell_depth == 0`**, storing pointers to each sub-command in `char *batch_cmds[MAX_ARGS]`. Semicolons enclosed inside subshells `(...)` are preserved intact for the child subshell to parse.
+  - Because `parse_batched_commands` walks the string manually instead of calling `strtok()`, subsequent `strtok()` calls inside `parse_command()` for individual sub-commands do not clobber the batch parser's state.
+- **Sequential Execution (`main` in `s3main.c`):**
+  - Iterates over all `batch_count` commands sequentially, dispatching each one to `is_subshell()`, `is_cd()`, or `launch_program()` + `reap()` regardless of whether previous commands in the batch succeeded or failed.
+
+### 5. Sections 6 & 7: Subshells & Arbitrary Nested Subshells (`(...)`)
+- **Subshell Boundary Detection (`find_subshell_bounds`, `is_subshell`):**
+  - Skips leading whitespace and verifies the command starts with `'('`.
+  - Tracks parenthesis nesting depth (`depth`) across the command string to locate the matching closing `')'` for the opening `'('`, and checks that only trailing whitespace follows that closing parenthesis. This accurately distinguishes a true subshell (including arbitrarily nested `(((...)))` expressions) from sibling subshells separated by top-level operators like `(cmd1) ; (cmd2)`.
+- **Recursive Subshell Execution (`launch_subshell`, `main` in `s3main.c`):**
+  - At startup, `s3main.c` resolves the absolute path to the running `s3` executable via `realpath(argv[0], shell_path)` so child subshells can still locate the `s3` binary even after `cd` changes the working directory.
+  - `launch_subshell(subshell_cmd, shell_path)` strips the outer `'('` and `')'` in-place and `fork()`s a child process that calls `execl(shell_path, "s3", inner_cmd, NULL)`.
+  - When the spawned `s3` instance starts with `argc > 1`, `s3main.c` copies `argv[1]` into `line`, runs a single non-interactive pass of the batch/subshell/command loop, and exits at the end of the loop (`if (argc > 1) break;`).
+  - **Environment Isolation & Arbitrary Nesting:** Because every subshell runs in its own forked `s3` process, any `cd` directory changes or state modifications inside `(...)` are isolated to that child process's PCB and never affect the parent shell. Deeply nested subshells `((...))` naturally strip one layer of parentheses per recursion level until the innermost commands execute.
+
 ---
 
 ## Coursework Roadmap & Team Division

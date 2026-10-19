@@ -72,6 +72,15 @@ void run_cd(char *args[], int argsc, char lwd[]);
 
 /// Splits multi-command statements and performs actions sequentially 
 void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count);
+
+/// checking if a subshell is needed
+int is_subshell(char line[]); // like is_cd() returns 1 if the command batch is a subsheel (...)
+
+/// launches a subshell of main()
+void launch_subshell(char line[], char shell_path[]);
+
+/// helper function to find parenthesis in command
+int find_subshell_bounds(char line[], int *start, int *end);
 /// ===========================================================================
 /// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
 /// (Add Person 1 / Advait function declarations below)
