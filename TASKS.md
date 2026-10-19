@@ -31,24 +31,24 @@
 ## Sprint 1: Sections 2 & 3 — Redirection & `cd`
 
 ### Advait (Person 1) — Section 2: Commands with Redirection (`feat/sec2-redirection`)
-- [ ] Declare redirection functions in `src/s3.h`
-- [ ] Implement `command_with_redirection(char line[])` to detect `<`, `>`, and `>>`
-- [ ] Implement parsing helper(s) to extract the redirection operator and target filename, and strip them from `args[]`
-- [ ] Implement output redirection (`>`) using `open()` (`O_WRONLY | O_CREAT | O_TRUNC`) and `dup2(..., STDOUT_FILENO)`
-- [ ] Implement append output redirection (`>>`) using `open()` (`O_WRONLY | O_CREAT | O_APPEND`) and `dup2(..., STDOUT_FILENO)`
-- [ ] Implement input redirection (`<`) using `open()` (`O_RDONLY`) and `dup2(..., STDIN_FILENO)`
-- [ ] Close the opened file descriptor after `dup2()` and handle `open()` errors gracefully
-- [ ] Implement `launch_program_with_redirection(char *args[], int argsc)`
-- [ ] **Test Section 2 commands:**
-  - [ ] `ls > txt/folder_contents.txt` and `ls -R > txt/folder_contents.txt`
-  - [ ] `echo "=== Full-Year Calendar ===" > txt/calendar.txt`
-  - [ ] `cal -y >> txt/calendar.txt`
-  - [ ] `tac txt/phrases.txt > txt/phrases_reversed.txt`
-  - [ ] `sort txt/phrases.txt > txt/phrases_sorted.txt`
-  - [ ] `head -n 5 txt/phrases.txt >> txt/phrases_sorted.txt`
-  - [ ] `wc txt/phrases.txt > txt/phrases_stats.txt`
-  - [ ] `grep June < txt/calendar.txt`
-  - [ ] `tr a-z A-Z < txt/phrases.txt`
+- [x] Declare redirection functions in `src/s3.h`
+- [x] Implement `command_with_redirection(char line[])` to detect `<`, `>`, and `>>`
+- [x] Implement parsing helper(s) to extract the redirection operator and target filename, and strip them from `args[]`
+- [x] Implement output redirection (`>`) using `open()` (`O_WRONLY | O_CREAT | O_TRUNC`) and `dup2(..., STDOUT_FILENO)`
+- [x] Implement append output redirection (`>>`) using `open()` (`O_WRONLY | O_CREAT | O_APPEND`) and `dup2(..., STDOUT_FILENO)`
+- [x] Implement input redirection (`<`) using `open()` (`O_RDONLY`) and `dup2(..., STDIN_FILENO)`
+- [x] Close the opened file descriptor after `dup2()` and handle `open()` errors gracefully
+- [x] Implement `launch_program_with_redirection(char *args[], int argsc)`
+- [x] **Test Section 2 commands:**
+  - [x] `ls > txt/folder_contents.txt` and `ls -R > txt/folder_contents.txt`
+  - [x] `echo "=== Full-Year Calendar ===" > txt/calendar.txt`
+  - [x] `cal -y >> txt/calendar.txt`
+  - [x] `tac txt/phrases.txt > txt/phrases_reversed.txt`
+  - [x] `sort txt/phrases.txt > txt/phrases_sorted.txt`
+  - [x] `head -n 5 txt/phrases.txt >> txt/phrases_sorted.txt`
+  - [x] `wc txt/phrases.txt > txt/phrases_stats.txt`
+  - [x] `grep June < txt/calendar.txt`
+  - [x] `tr a-z A-Z < txt/phrases.txt`
 
 ### Srivathsan (Person 2) — Section 3: Support for `cd` & Dynamic Prompt (`feat/sec3-cd-prompt`)
 - [x] Declare `cd` and `lwd` functions in `src/s3.h`
@@ -67,8 +67,8 @@
   - [x] `cd -` toggles back and forth between the previous and current directories
 
 ### Sprint 1 Integration (Both)
-- [ ] Merge `feat/sec2-redirection` and `feat/sec3-cd-prompt` into `main`
-- [ ] Verify `s3main.c` matches the Section 3 control flow and passes both Redirection and `cd` tests
+- [x] Merge `feat/sec2-redirection` and `feat/sec3-cd-prompt` into `main`
+- [x] Verify `s3main.c` matches the Section 3 control flow and passes both Redirection and `cd` tests
 
 ---
 
