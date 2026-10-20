@@ -27,7 +27,7 @@ This repository contains the implementation of **`s3` (Software Systems Shell)**
 From inside the `src/` directory:
 
 ```bash
-gcc -Wall -Wextra -g *.c -o s3
+gcc *.c -o s3
 ./s3
 ```
 
