@@ -15,10 +15,8 @@ This repository contains the implementation of **`s3` (Software Systems Shell)**
 │   ├── s3.c                # Implementation of shell parsing, built-ins, redirection, and execution
 │   └── txt/
 │       └── phrases.txt     # Sample text file for testing shell commands
-├── testing/                # Automated regression & verification test suites
-│   ├── test_sec0_1.sh      # Sprint 0 & Section 1 automated test suite
-│   ├── test_sec3_cd.sh     # Section 3 (cd & dynamic prompt) automated test suite
-│   └── test_sec1_to_4.sh   # Combined Sprint 0 & Sprint 1 (Sections 0–3) test suite
+├── testing/                # Automated regression & verification test suite
+│   └── test_sec0_to_7.sh   # Master automated test suite (Sections 0–7, 62 tests)
 ├── assistance/             # Concept & system call study guides for Sections 1–8
 ├── TASKS.md                # Interactive sprint & test checklist
 └── README.md
@@ -33,14 +31,12 @@ gcc -Wall -Wextra -g *.c -o s3
 ./s3
 ```
 
-### Running the Automated Test Suites
+### Running the Master Automated Test Suite
 
 From the repository root:
 
 ```bash
-./testing/test_sec0_1.sh     # Tests Sprint 0 & Section 1 (Basic Commands)
-./testing/test_sec3_cd.sh    # Tests Section 3 (cd built-in & dynamic prompt)
-./testing/test_sec1_to_4.sh  # Combined comprehensive test suite (Sections 0–3)
+./testing/test_sec0_to_7.sh  # Runs all 62 tests covering Sections 0–7 (Core 70%)
 ```
 
 ---
@@ -85,22 +81,34 @@ From the repository root:
 - **Dynamic Shell Prompt (`construct_shell_prompt`):**
   - Queries `getcwd()` before each prompt render (falling back to `lwd` if needed) and formats the prompt string via `snprintf(shell_prompt, MAX_PROMPT_LEN, "[%s s3]$ ", cwd)`.
 
-### 4. Section 5: Batched Commands (`;`)
+### 4. Section 4: Commands with Pipes (`|`)
+- **Parenthesis-Aware Pipeline Splitting (`parse_pipe_stages`, `parse_pipe`):**
+  - Scans a command string character-by-character while tracking parenthesis depth (`shell_depth`) and splits on `'|'` **only when `shell_depth == 0`**, storing each stage string in `char *pipe_stages[MAX_ARGS]`. Any `'|'` inside a subshell `(...)` is preserved intact for the child subshell to execute.
+  - Validates pipeline syntax and rejects empty/malformed stages (`cmd |`, `| cmd`, `cmd | | cmd`) with `shell: malformed pipeline`.
+- **Multi-Stage Pipeline Execution (`launch_pipeline_stages`):**
+  - Supports pipelines of arbitrary length ($N$ stages) by chaining `prev_read_fd` across iterations and creating a `pipe(pipefd)` for each stage except the last (`i < num_stages - 1`).
+  - In each forked child process:
+    - Wires `prev_read_fd` to `STDIN_FILENO` via `dup2()` (for stages $i > 0$) and `pipefd[1]` to `STDOUT_FILENO` via `dup2()` (for stages $i < num_stages - 1$), then closes all raw pipe descriptors (`prev_read_fd`, `pipefd[0]`, `pipefd[1]`).
+    - If the stage is a subshell (`find_subshell_bounds`), applies any outer stage redirection and executes the child `s3` binary via `child({shell_path, inner_cmd, NULL}, 2)`.
+    - Otherwise, tokenizes the stage via `parse_command`, extracts and applies any stage-level `<`, `>`, or `>>` redirection via `parse_redirection` and `apply_redirection`, and calls `child()`.
+  - In the parent process, closes `prev_read_fd` and `pipefd[1]`, advances `prev_read_fd = pipefd[0]`, and reaps all launched child PIDs in order via `waitpid()`.
+
+### 5. Section 5: Batched Commands (`;`)
 - **Top-Level Semicolon Splitting (`parse_batched_commands`):**
   - Scans the raw command line character-by-character while maintaining a parenthesis nesting counter (`shell_depth`), incrementing on `'('` and decrementing on `')'`.
   - Splits the line by replacing `';'` with `'\0'` **only when `shell_depth == 0`**, storing pointers to each sub-command in `char *batch_cmds[MAX_ARGS]`. Semicolons enclosed inside subshells `(...)` are preserved intact for the child subshell to parse.
   - Because `parse_batched_commands` walks the string manually instead of calling `strtok()`, subsequent `strtok()` calls inside `parse_command()` for individual sub-commands do not clobber the batch parser's state.
 - **Sequential Execution (`main` in `s3main.c`):**
-  - Iterates over all `batch_count` commands sequentially, dispatching each one to `is_subshell()`, `is_cd()`, or `launch_program()` + `reap()` regardless of whether previous commands in the batch succeeded or failed.
+  - Iterates over all `batch_count` commands sequentially, dispatching each one to `is_subshell()`, `is_cd()`, or `parse_pipe_stages()` / `launch_pipeline_stages()` / `launch_program()` + `reap()` regardless of whether previous commands in the batch succeeded or failed.
 
-### 5. Sections 6 & 7: Subshells & Arbitrary Nested Subshells (`(...)`)
+### 6. Sections 6 & 7: Subshells & Arbitrary Nested Subshells (`(...)`)
 - **Subshell Boundary Detection (`find_subshell_bounds`, `is_subshell`):**
   - Skips leading whitespace and verifies the command starts with `'('`.
-  - Tracks parenthesis nesting depth (`depth`) across the command string to locate the matching closing `')'` for the opening `'('`, and checks that only trailing whitespace follows that closing parenthesis. This accurately distinguishes a true subshell (including arbitrarily nested `(((...)))` expressions) from sibling subshells separated by top-level operators like `(cmd1) ; (cmd2)`.
+  - Tracks parenthesis nesting depth (`shell_depth`) across the command string to locate the matching closing `')'` for the opening `'('`, and checks that only trailing whitespace or redirection (`<`, `>`, `>>`) follows that closing parenthesis. This accurately distinguishes a standalone subshell (including arbitrarily nested `(((...)))` expressions) from a subshell piped into another command `(cmd1) | cmd2`.
 - **Recursive Subshell Execution (`launch_subshell`, `main` in `s3main.c`):**
   - At startup, `s3main.c` resolves the absolute path to the running `s3` executable via `realpath(argv[0], shell_path)` so child subshells can still locate the `s3` binary even after `cd` changes the working directory.
-  - `launch_subshell(subshell_cmd, shell_path)` strips the outer `'('` and `')'` in-place and `fork()`s a child process that calls `execl(shell_path, "s3", inner_cmd, NULL)`.
-  - When the spawned `s3` instance starts with `argc > 1`, `s3main.c` copies `argv[1]` into `line`, runs a single non-interactive pass of the batch/subshell/command loop, and exits at the end of the loop (`if (argc > 1) break;`).
+  - `launch_subshell(line, shell_path)` strips the outer `'('` and `')'` in-place, parses any trailing redirection on the subshell, and calls `launch_program({shell_path, inner_cmd, NULL}, 2, &redir)`.
+  - When the spawned `s3` instance starts with `argc > 1`, `s3main.c` copies `argv[1]` into `line`, runs a single non-interactive pass of the batch/subshell/pipeline/command loop, and exits at the end of the loop (`if (argc > 1) break;`).
   - **Environment Isolation & Arbitrary Nesting:** Because every subshell runs in its own forked `s3` process, any `cd` directory changes or state modifications inside `(...)` are isolated to that child process's PCB and never affect the parent shell. Deeply nested subshells `((...))` naturally strip one layer of parentheses per recursion level until the innermost commands execute.
 
 ---

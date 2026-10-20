@@ -75,22 +75,22 @@
 ## Sprint 2: Sections 4 & 5 — Pipelines & Batched Commands
 
 ### Pre-Sprint Refactoring (Both)
-- [ ] Extract single-command execution logic (`cd` / redirection / basic command) into a reusable helper function
-- [ ] Agree on a parenthesis-aware delimiter splitting approach so `;` and `|` inside `(...)` are not split prematurely
+- [x] Extract single-command execution logic (`cd` / redirection / basic command) into a reusable helper function
+- [x] Agree on a parenthesis-aware delimiter splitting approach so `;` and `|` inside `(...)` are not split prematurely
 
 ### Advait (Person 1) — Section 4: Commands with Pipes (`feat/sec4-pipes`)
-- [ ] Implement detection function for pipelined commands (`|`)
-- [ ] Implement tokenizer to split a pipeline into individual stage strings (ignoring `|` inside parentheses)
-- [ ] Implement pipeline launcher supporting arbitrary pipeline lengths ($N$ stages):
-  - [ ] Create pipes using `pipe()` and wire stage $i$ `stdout` $\rightarrow$ stage $i+1$ `stdin` via `dup2()`
-  - [ ] Reuse existing basic and redirection child/launch logic for stages with `<`, `>`, or `>>`
-  - [ ] Close all unused pipe file descriptors in both parent and child processes
-  - [ ] Reap all child processes in the pipeline
-- [ ] **Test Section 4 commands:**
-  - [ ] `cat txt/phrases.txt | sort > txt/phrases_sorted.txt`
-  - [ ] `tr a-z A-Z < txt/phrases.txt | grep BURN | sort | wc -l` (expect `3`)
-  - [ ] `ps aux | grep python | sort -k 3 -nr | head`
-  - [ ] Verify mid-pipeline output redirection (`>`) behavior
+- [x] Implement detection function for pipelined commands (`|`)
+- [x] Implement tokenizer to split a pipeline into individual stage strings (ignoring `|` inside parentheses)
+- [x] Implement pipeline launcher supporting arbitrary pipeline lengths ($N$ stages):
+  - [x] Create pipes using `pipe()` and wire stage $i$ `stdout` $\rightarrow$ stage $i+1$ `stdin` via `dup2()`
+  - [x] Reuse existing basic and redirection child/launch logic for stages with `<`, `>`, or `>>`
+  - [x] Close all unused pipe file descriptors in both parent and child processes
+  - [x] Reap all child processes in the pipeline
+- [x] **Test Section 4 commands:**
+  - [x] `cat txt/phrases.txt | sort > txt/phrases_sorted.txt`
+  - [x] `tr a-z A-Z < txt/phrases.txt | grep BURN | sort | wc -l` (expect `11`)
+  - [x] `ps aux | grep python | sort -k 3 -nr | head`
+  - [x] Verify mid-pipeline output redirection (`>`) behavior
 
 ### Srivathsan (Person 2) — Section 5: Batched Commands (`feat/sec5-batches`)
 - [x] Implement detection/splitting for batched commands separated by `;` (ignoring `;` inside parentheses)
@@ -101,8 +101,8 @@
   - [x] Batch containing `cd` followed by a command in the new directory (e.g. `cd txt ; ls ; cd -`)
 
 ### Sprint 2 Integration (Both)
-- [ ] Merge `feat/sec4-pipes` and `feat/sec5-batches` into `main`
-- [ ] Verify combined batch + pipeline + redirection + `cd` commands work end-to-end
+- [x] Merge `feat/sec4-pipes` and `feat/sec5-batches` into `main`
+- [x] Verify combined batch + pipeline + redirection + `cd` commands work end-to-end
 
 ---
 
@@ -116,15 +116,15 @@
 - [x] Write command parsing tests covering batches, pipes, whitespace edge cases, and deeply nested subshells
 
 ### Advait (Person 1) — Pipeline Subshell Integration & Process-Management Tests
-- [ ] Support launching a subshell as a stage within a pipeline with `stdin`/`stdout` redirected to pipe ends
-- [ ] Verify subshells with file redirection (e.g. `(cd txt ; cat phrases.txt) > out.txt`)
-- [ ] Write process-management tests verifying no zombie processes or leaked file descriptors remain
+- [x] Support launching a subshell as a stage within a pipeline with `stdin`/`stdout` redirected to pipe ends
+- [x] Verify subshells with file redirection (e.g. `(cd txt ; cat phrases.txt) > out.txt`)
+- [x] Write process-management tests verifying no zombie processes or leaked file descriptors remain
 
 ### Sprint 3 Verification Tests & Core 70% Sign-off (Both)
 - [x] `echo "Start processing..." ; (cd /var/log ; cat syslog | sort > sorted_syslog.txt) ; echo "Finished writing sorted log." ; date`
-- [ ] `(cd /var/log ; cat syslog) | sort | head`
+- [x] `(cd /var/log ; cat syslog) | sort | head`
 - [x] Nested subshells test: e.g. `(cd txt ; (cat phrases.txt | grep burn) | wc -l) ; pwd` (verify `pwd` is unchanged)
-- [ ] Merge `feat/sec6-7-subshells` into `main`
+- [x] Merge `feat/sec6-7-subshells` into `main`
 
 ---
 

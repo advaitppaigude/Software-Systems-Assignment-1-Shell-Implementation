@@ -20,6 +20,9 @@ int main(int argc, char *argv[]){
     int redir_status;
     Redirection redir;
 
+    char *pipe_stages[MAX_ARGS];
+    int num_stages;
+
     //stores batched input commands
     char *batch_cmds[MAX_ARGS];
     int batch_count;
@@ -49,13 +52,21 @@ int main(int argc, char *argv[]){
                 run_cd(args, argsc, lwd);
             }
             else {
-                parse_command(batch_cmds[i], args, &argsc);
+                int pipe_status = parse_pipe_stages(batch_cmds[i], pipe_stages, &num_stages);
 
-                redir_status = parse_redirection(args, &argsc, &redir);
+                if (pipe_status == 0) {
+                    if (num_stages > 1) {
+                        launch_pipeline_stages(pipe_stages, num_stages, shell_path);
+                    } else if (num_stages == 1) {
+                        parse_command(pipe_stages[0], args, &argsc);
 
-                if (redir_status == 0) {
-                    launch_program(args, argsc, &redir);
-                    reap();
+                        redir_status = parse_redirection(args, &argsc, &redir);
+
+                        if (redir_status == 0) {
+                            launch_program(args, argsc, &redir);
+                            reap();
+                        }
+                    }
                 }
             }
         }

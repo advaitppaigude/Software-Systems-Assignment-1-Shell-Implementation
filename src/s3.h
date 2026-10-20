@@ -99,6 +99,7 @@ int apply_redirection(const Redirection *redir);
 
 int parse_pipe(char *args[], int *argsc, char **commands[], int *num_commands);
 int count_args(char *args[]);
-int launch_pipeline(char **commands[], int num_commands);
+int parse_pipe_stages(char line[], char *pipe_stages[], int *num_stages);
+int launch_pipeline_stages(char *pipe_stages[], int num_stages, char shell_path[]);
 
 #endif

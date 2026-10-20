@@ -1,5 +1,4 @@
 #include "s3.h"
-#include <string.h>
 
 /// ===========================================================================
 /// PERSON 2 (Srivathsan): Prompt & cd (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
@@ -131,8 +130,18 @@ void launch_subshell(char line[], char shell_path[]){
     if (find_subshell_bounds(line, &start, &end)){
         line[end] = '\0'; // replace closing ')' with '\0'
         char *sub_args[3] = { shell_path, &line[start + 1], NULL };
-        Redirection no_redir = { REDIR_NONE, NULL };
-        launch_program(sub_args, 2, &no_redir);
+        Redirection redir = { REDIR_NONE, NULL };
+
+        char *trail_args[MAX_ARGS];
+        int trail_argsc = 0;
+        parse_command(&line[end + 1], trail_args, &trail_argsc);
+        if (trail_argsc > 0) {
+            if (parse_redirection(trail_args, &trail_argsc, &redir) < 0 || trail_argsc > 0) {
+                return;
+            }
+        }
+
+        launch_program(sub_args, 2, &redir);
     }
 }
 
@@ -154,7 +163,12 @@ int find_subshell_bounds(char line[], int *start, int *end){
         } else if (line[i] == ')') {
             shell_depth--;
             if (shell_depth == 0) {
-                *end = i; // make end of subshell which will be replaced with \0
+                int j = i + 1;
+                while (line[j] == ' ') j++;
+                if (line[j] != '\0' && line[j] != '>' && line[j] != '<') {
+                    return 0; // Something like "| sort" follows ')', so not a standalone subshell!
+                }
+                *end = i;
                 return 1;
             }
         }
@@ -321,22 +335,6 @@ int apply_redirection(const Redirection *redir) {
     return (dup_status <  0) ? -1 : 0;
 }
 
-
-/*
-
-int pipefd[2];
-int status = pipe(pipefd);
-status = 0 -> successful (-1 -> fail)
-pipefd[0] -> read end
-pipefd[1] -> write end
-
-
-in each child use dup2 but connect write end to STDOUT_FILENO, and read end to STDIN_FILENO
-
-
-*/
-
-
 int parse_pipe(char *args[], int *argsc, char **commands[], int *num_commands) {
     *num_commands = 0; // ensuring its initialised
     if (*argsc == 0) return 0; // skip launching a process
@@ -380,21 +378,58 @@ int count_args(char *args[]) {
     return n;
 }
 
+int parse_pipe_stages(char line[], char *pipe_stages[], int *num_stages) {
+    int i = 0;
+    int shell_depth = 0;
+    *num_stages = 0;
 
-int launch_pipeline(char **commands[], int num_commands) {
+    int k = 0;
+    while (line[k] == ' ') k++;
+    if (line[k] == '\0') {
+        return 0;
+    }
+
+    pipe_stages[(*num_stages)++] = &line[0];
+
+    while (line[i] != '\0') {
+        if (line[i] == '(') {
+            shell_depth++;
+        } else if (line[i] == ')') {
+            shell_depth--;
+        } else if (line[i] == '|' && shell_depth == 0 && *num_stages < MAX_ARGS - 1) {
+            line[i] = '\0';
+            pipe_stages[(*num_stages)++] = &line[i + 1];
+        }
+        i++;
+    }
+    pipe_stages[*num_stages] = NULL;
+
+    if (*num_stages > 1) {
+        for (int s = 0; s < *num_stages; s++) {
+            int idx = 0;
+            while (pipe_stages[s][idx] == ' ') idx++;
+            if (pipe_stages[s][idx] == '\0') {
+                fprintf(stderr, "shell: malformed pipeline\n");
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+int launch_pipeline_stages(char *pipe_stages[], int num_stages, char shell_path[]) {
     int prev_read_fd = -1;
     int pipefd[2];
     pid_t pids[MAX_ARGS];
     int launched = 0;
     int error = 0;
 
-    for (int i = 0; i < num_commands; i++) {
-        int is_last = (i == num_commands - 1);
+    for (int i = 0; i < num_stages; i++) {
+        int is_last = (i == num_stages - 1);
 
         if (is_last == 0) {
             if (pipe(pipefd) == -1) {
                 perror("pipe failed");
-                // need to handle already-launched children
                 error = -1;
                 break;
             }
@@ -403,7 +438,6 @@ int launch_pipeline(char **commands[], int num_commands) {
         int rc = fork();
 
         if (rc == 0) { // child
-
             if (prev_read_fd != -1) {
                 if (dup2(prev_read_fd, STDIN_FILENO) == -1) {
                     perror("connection to current stdin failed");
@@ -417,7 +451,7 @@ int launch_pipeline(char **commands[], int num_commands) {
                     _exit(EXIT_FAILURE);
                 }
             }
-            if (prev_read_fd != -1) { // not start
+            if (prev_read_fd != -1) {
                 close(prev_read_fd);
             }
 
@@ -425,33 +459,57 @@ int launch_pipeline(char **commands[], int num_commands) {
                 close(pipefd[0]);
                 close(pipefd[1]);
             }
-            
-            child(commands[i], count_args(commands[i]));
-            _exit(EXIT_FAILURE); // ensuring child cannot reenter
+
+            int start, end;
+            if (find_subshell_bounds(pipe_stages[i], &start, &end)) {
+                pipe_stages[i][end] = '\0';
+                char *trail_args[MAX_ARGS];
+                int trail_argsc = 0;
+                Redirection stage_redir = { REDIR_NONE, NULL };
+                parse_command(&pipe_stages[i][end + 1], trail_args, &trail_argsc);
+                if (trail_argsc > 0) {
+                    if (parse_redirection(trail_args, &trail_argsc, &stage_redir) < 0 || trail_argsc > 0) {
+                        _exit(EXIT_FAILURE);
+                    }
+                    if (apply_redirection(&stage_redir) < 0) {
+                        _exit(EXIT_FAILURE);
+                    }
+                }
+                char *sub_args[3] = { shell_path, &pipe_stages[i][start + 1], NULL };
+                child(sub_args, 2);
+            } else {
+                char *stage_args[MAX_ARGS];
+                int stage_argsc = 0;
+                parse_command(pipe_stages[i], stage_args, &stage_argsc);
+                Redirection stage_redir;
+                if (parse_redirection(stage_args, &stage_argsc, &stage_redir) < 0) {
+                    _exit(EXIT_FAILURE);
+                }
+                if (apply_redirection(&stage_redir) < 0) {
+                    _exit(EXIT_FAILURE);
+                }
+                child(stage_args, stage_argsc);
+            }
+            _exit(EXIT_FAILURE);
         }
         else if (rc > 0) { // parent
             pids[launched] = rc;
             launched++;
 
-            if (prev_read_fd != -1) { // not start
+            if (prev_read_fd != -1) {
                 close(prev_read_fd);
             }
 
-            if (is_last == 0) { // allowing for connection to be made across stages
-            // pipefd[1] is the current stage output/write end
-            // pipefd[0] will be passed to the next stage as its input/read end
+            if (is_last == 0) {
                 close(pipefd[1]);
                 prev_read_fd = pipefd[0];
-            }
-            else {
+            } else {
                 prev_read_fd = -1;
             }
         }
         else {
             perror("fork");
-            
             if (is_last == 0) {
-                // pipes may have been created but fork failed so need to close them
                 close(pipefd[0]);
                 close(pipefd[1]);
             }
@@ -464,7 +522,6 @@ int launch_pipeline(char **commands[], int num_commands) {
         if (prev_read_fd != -1) {
             close(prev_read_fd);
         }
-
         for (int j = 0; j < launched; j++) {
             kill(pids[j], SIGTERM);
         }
@@ -476,5 +533,5 @@ int launch_pipeline(char **commands[], int num_commands) {
         }
     }
 
-    return error;    
+    return error;
 }
