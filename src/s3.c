@@ -278,67 +278,99 @@ int count_args(char *args[]) {
 
 
 int launch_pipeline(char **commands[], int num_commands) {
+    int prev_read_fd = -1;
     int pipefd[2];
-    int status = pipe(pipefd);
-    if (status == -1) {
-        perror("pipe failed");
-        return -1;
-    }
-    
-    int rc_a = fork();
+    pid_t pids[MAX_ARGS];
+    int launched = 0;
+    int error = 0;
 
-    if (rc_a < 0) {
-        perror("fork");
-        close(pipefd[0]);
-        close(pipefd[1]);
-        return -1;
-    }
-    else if (rc_a == 0) { // child A
-        if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
-            perror("dup2");
-            _exit(EXIT_FAILURE);
-        }
+    for (int i = 0; i < num_commands; i++) {
+        int is_last = (i == num_commands - 1);
 
-        close(pipefd[0]);
-        close(pipefd[1]);
-
-        // Execute commands[0] using child()
-        child(commands[0], count_args(commands[0]));
-    }
-    else {
-        //printf("Parent (pid: %d)\n", getpid());
-        int rc_b = fork();
-    
-        if (rc_b < 0) {
-            perror("fork");
-            close(pipefd[0]);
-            close(pipefd[1]);
-            return -1;
-        }
-        else if (rc_b == 0) { // child B
-            if (dup2(pipefd[0], STDIN_FILENO) == -1) {
-                perror("dup2");
-                _exit(EXIT_FAILURE);
+        if (is_last == 0) {
+            if (pipe(pipefd) == -1) {
+                perror("pipe failed");
+                // need to handle already-launched children
+                error = -1;
+                break;
             }
-            close(pipefd[0]);
-            close(pipefd[1]);
+        }
 
-            // Execute commands[1] using child()
-            child(commands[1], count_args(commands[1]));
+        int rc = fork();
+
+        if (rc == 0) { // child
+
+            if (prev_read_fd != -1) {
+                if (dup2(prev_read_fd, STDIN_FILENO) == -1) {
+                    perror("connection to current stdin failed");
+                    _exit(EXIT_FAILURE);
+                }
+            }
+
+            if (is_last == 0) {
+                if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+                    perror("connection to current stdout failed");
+                    _exit(EXIT_FAILURE);
+                }
+            }
+            if (prev_read_fd != -1) { // not start
+                close(prev_read_fd);
+            }
+
+            if (!is_last) {
+                close(pipefd[0]);
+                close(pipefd[1]);
+            }
+            
+            child(commands[i], count_args(commands[i]));
+            _exit(EXIT_FAILURE); // ensuring child cannot reenter
+        }
+        else if (rc > 0) { // parent
+            pids[launched] = rc;
+            launched++;
+
+            if (prev_read_fd != -1) { // not start
+                close(prev_read_fd);
+            }
+
+            if (is_last == 0) { // allowing for connection to be made across stages
+            // pipefd[1] is the current stage output/write end
+            // pipefd[0] will be passed to the next stage as its input/read end
+                close(pipefd[1]);
+                prev_read_fd = pipefd[0];
+            }
+            else {
+                prev_read_fd = -1;
+            }
         }
         else {
-            //printf("Parent (pid: %d)\n", getpid());
-            close(pipefd[0]);
-            close(pipefd[1]);
-            if (waitpid(rc_a, NULL, 0) == -1) {
-                perror("waitpid Child A");
+            perror("fork");
+            
+            if (is_last == 0) {
+                // pipes may have been created but fork failed so need to close them
+                close(pipefd[0]);
+                close(pipefd[1]);
             }
-
-            if (waitpid(rc_b, NULL, 0) == -1) {
-                perror("waitpid Child B");
-            }
+            error = -1;
+            break;
         }
     }
 
-    return 0;    
+    if (error == -1) {
+        if (prev_read_fd != -1) {
+            close(prev_read_fd);
+        }
+
+        for (int j = 0; j < launched; j++) {
+            kill(pids[j], SIGTERM);
+        }
+    }
+
+    for (int i = 0; i < launched; i++) {
+        if (waitpid(pids[i], NULL, 0) == -1) {
+            perror("waitpid");
+        }
+    }
+
+    return error;    
 }
