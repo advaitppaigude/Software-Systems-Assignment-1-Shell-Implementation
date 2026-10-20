@@ -321,3 +321,160 @@ int apply_redirection(const Redirection *redir) {
     return (dup_status <  0) ? -1 : 0;
 }
 
+
+/*
+
+int pipefd[2];
+int status = pipe(pipefd);
+status = 0 -> successful (-1 -> fail)
+pipefd[0] -> read end
+pipefd[1] -> write end
+
+
+in each child use dup2 but connect write end to STDOUT_FILENO, and read end to STDIN_FILENO
+
+
+*/
+
+
+int parse_pipe(char *args[], int *argsc, char **commands[], int *num_commands) {
+    *num_commands = 0; // ensuring its initialised
+    if (*argsc == 0) return 0; // skip launching a process
+    *num_commands = 1;
+    commands[0] = &args[0];
+    for (int i = 0; i < *argsc; i++) {
+        if (strcmp(args[i], "|") == 0) {
+            if (i == 0) {
+                // invalid
+                fprintf(stderr, "shell: malformed pipeline\n");
+                return -1;
+            }
+            else if (i == *argsc - 1) {
+                // invalid
+                fprintf(stderr, "shell: malformed pipeline\n");
+                return -1;
+            }
+            else if (strcmp(args[i + 1], "|") == 0) {
+                // invalid
+                fprintf(stderr, "shell: malformed pipeline\n");
+                return -1;
+            }
+            commands[*num_commands] = &args[i + 1];
+            (*num_commands)++;
+        }
+    }
+
+    for (int i = 1; i < *num_commands; i++) {
+        *(commands[i] - 1) = NULL;
+    }
+
+    return 0;
+}
+
+
+int count_args(char *args[]) {
+    int n = 0;
+    while (args[n] != NULL) {
+        n++;
+    }
+    return n;
+}
+
+
+int launch_pipeline(char **commands[], int num_commands) {
+    int prev_read_fd = -1;
+    int pipefd[2];
+    pid_t pids[MAX_ARGS];
+    int launched = 0;
+    int error = 0;
+
+    for (int i = 0; i < num_commands; i++) {
+        int is_last = (i == num_commands - 1);
+
+        if (is_last == 0) {
+            if (pipe(pipefd) == -1) {
+                perror("pipe failed");
+                // need to handle already-launched children
+                error = -1;
+                break;
+            }
+        }
+
+        int rc = fork();
+
+        if (rc == 0) { // child
+
+            if (prev_read_fd != -1) {
+                if (dup2(prev_read_fd, STDIN_FILENO) == -1) {
+                    perror("connection to current stdin failed");
+                    _exit(EXIT_FAILURE);
+                }
+            }
+
+            if (is_last == 0) {
+                if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+                    perror("connection to current stdout failed");
+                    _exit(EXIT_FAILURE);
+                }
+            }
+            if (prev_read_fd != -1) { // not start
+                close(prev_read_fd);
+            }
+
+            if (!is_last) {
+                close(pipefd[0]);
+                close(pipefd[1]);
+            }
+            
+            child(commands[i], count_args(commands[i]));
+            _exit(EXIT_FAILURE); // ensuring child cannot reenter
+        }
+        else if (rc > 0) { // parent
+            pids[launched] = rc;
+            launched++;
+
+            if (prev_read_fd != -1) { // not start
+                close(prev_read_fd);
+            }
+
+            if (is_last == 0) { // allowing for connection to be made across stages
+            // pipefd[1] is the current stage output/write end
+            // pipefd[0] will be passed to the next stage as its input/read end
+                close(pipefd[1]);
+                prev_read_fd = pipefd[0];
+            }
+            else {
+                prev_read_fd = -1;
+            }
+        }
+        else {
+            perror("fork");
+            
+            if (is_last == 0) {
+                // pipes may have been created but fork failed so need to close them
+                close(pipefd[0]);
+                close(pipefd[1]);
+            }
+            error = -1;
+            break;
+        }
+    }
+
+    if (error == -1) {
+        if (prev_read_fd != -1) {
+            close(prev_read_fd);
+        }
+
+        for (int j = 0; j < launched; j++) {
+            kill(pids[j], SIGTERM);
+        }
+    }
+
+    for (int i = 0; i < launched; i++) {
+        if (waitpid(pids[i], NULL, 0) == -1) {
+            perror("waitpid");
+        }
+    }
+
+    return error;    
+}

@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 ///Constants for array sizes, defined for clarity and code readability
 #define MAX_LINE 1024
@@ -95,5 +96,9 @@ void launch_program(char *args[], int argsc, Redirection *redir);
 
 int parse_redirection(char *args[], int *argsc, Redirection *redir);
 int apply_redirection(const Redirection *redir);
+
+int parse_pipe(char *args[], int *argsc, char **commands[], int *num_commands);
+int count_args(char *args[]);
+int launch_pipeline(char **commands[], int num_commands);
 
 #endif
