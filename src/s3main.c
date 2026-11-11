@@ -1,7 +1,6 @@
 #include "s3.h"
 
 int main(int argc, char *argv[]){
-
     ///Stores the command line input
     char line[MAX_LINE];
 
@@ -50,8 +49,7 @@ int main(int argc, char *argv[]){
             }else if (is_cd(batch_cmds[i])) {
                 parse_command(batch_cmds[i], args, &argsc);
                 run_cd(args, argsc, lwd);
-            }
-            else {
+            }else {
                 int pipe_status = parse_pipe_stages(batch_cmds[i], pipe_stages, &num_stages);
 
                 if (pipe_status == 0) {

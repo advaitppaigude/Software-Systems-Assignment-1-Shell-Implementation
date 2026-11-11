@@ -111,6 +111,28 @@ From the repository root:
   - When the spawned `s3` instance starts with `argc > 1`, `s3main.c` copies `argv[1]` into `line`, runs a single non-interactive pass of the batch/subshell/pipeline/command loop, and exits at the end of the loop (`if (argc > 1) break;`).
   - **Environment Isolation & Arbitrary Nesting:** Because every subshell runs in its own forked `s3` process, any `cd` directory changes or state modifications inside `(...)` are isolated to that child process's PCB and never affect the parent shell. Deeply nested subshells `((...))` naturally strip one layer of parentheses per recursion level until the innermost commands execute.
 
+### 7. Section 8: Stretch Goals
+- **Wildcard Globbing (`*` and `?` via `expand_globs`):**
+  - Integrated at the end of command parsing (`parse_command`). Inspects each parsed argument token for wildcard characters (`*` and `?`).
+  - Uses the POSIX `<glob.h>` API with `GLOB_NOCHECK` to expand matching filenames in alphabetical order. If no matching files exist in the filesystem, `GLOB_NOCHECK` preserves the argument string literally (matching standard shell semantics).
+  - Memory allocated by `glob()` is cleanly freed via `globfree()`, and expanded path tokens are duplicated into the arguments array.
+  - Fully integrated across built-in `cd` (e.g. `cd t*t`), redirection (`< txt/*.txt`), multi-stage pipelines (`cat txt/*.txt | grep burn | wc -l`), and subshells (`(cd t*t ; ls *.txt)`).
+- **Usability Enhancements — Enhanced Custom Prompt (`construct_shell_prompt`):**
+  - **Terminal Detection (`isatty`):** Differentiates between non-interactive scripted/piped execution and real interactive terminals via `isatty(STDIN_FILENO)`. Automated test scripts continue to receive the strict `[cwd s3]$ ` prompt format, while interactive terminal sessions receive the enhanced prompt.
+  - **User & Host Resolution:** Dynamically fetches the current username via `getenv("USER")` (falling back to `"user"`) and system hostname via `gethostname()` (falling back to `"localhost"`).
+  - **`$HOME` Path Shortening:** Inspects `cwd` against `getenv("HOME")`. When `cwd` is within the user's home directory, the home prefix is automatically shortened to `~` (e.g., `~/Documents/...`), preserving readability in deeply nested paths.
+  - **ANSI Color Formatting:** Interactive prompt renders with distinct ANSI colors: yellow bracket and shell indicator `[... s3]$ `, bold green `user@host`, bold blue current working directory, and terminal attribute reset codes (`\033[0m`) before reading input.
+- **Usability Enhancements — Command History & Line Editing (`read_command_line`):**
+  - Configures terminal attributes using `<termios.h>` to disable canonical mode (`ICANON`) and character echoing (`ECHO`) for interactive TTY sessions.
+  - **Up/Down Arrow Navigation:** Intercepts ANSI escape sequences for Up (`\033[A`) and Down (`\033[B`) arrows to navigate through the circular in-memory `history` buffer. Lines are dynamically redrawn via `\r\033[K` with prompt styling and command text. Navigating past the newest command restores a blank line.
+  - **Backspace Support:** Handles both ASCII 127 (`DEL`) and `\b` to delete characters from the active buffer and terminal display (`\b \b`).
+  - **History Filtering:** Skips blank and whitespace-only lines when appending to history via `add_to_history()`.
+- **Usability Enhancements — Interactive Tab Completion (`read_command_line`):**
+  - Intercepts `\t` keypresses to locate the prefix of the current in-progress token and globs for matching filesystem paths (`pattern*`).
+  - **Single Match:** Immediately autocompletes the word inline and updates buffer length. The completed full command string is preserved and stored in history when executed.
+  - **Multiple Matches:** Displays all matching candidates separated by spaces on a new line, then cleanly redraws the styled prompt and the user's partial input line, allowing immediate continued typing.
+  - Restores original terminal attributes (`tcsetattr` with `TCSANOW`) upon hitting Enter (`\n`) before executing the command.
+
 ---
 
 ## Coursework Roadmap & Team Division
@@ -118,6 +140,6 @@ From the repository root:
 | Team Member | Assigned Areas |
 | :--- | :--- |
 | **Advait (Person 1)** | Basic execution, I/O Redirection (`<`, `>`, `>>`), Pipelines (`\|`), Process-management tests |
-| **Srivathsan (Person 2)** | `cd` built-in & dynamic prompt, Batched commands (`;`), Subshells & nesting (`(...)`), Command parsing tests |
+| **Srivathsan (Person 2)** | `cd` built-in & dynamic prompt, Batched commands (`;`), Subshells & nesting (`(...)`), Section 8 Stretch Goals (Wildcards, Custom Prompt, History & Tab Completion), Command parsing & test suites |
 
 See **[TASKS.md](./TASKS.md)** for the full interactive checkbox list of implementation tasks and test cases across Sprints 0–4.

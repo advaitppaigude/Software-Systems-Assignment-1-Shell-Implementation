@@ -11,11 +11,15 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <glob.h>
+#include <termios.h> 
+
 
 ///Constants for array sizes, defined for clarity and code readability
 #define MAX_LINE 1024
 #define MAX_ARGS 128
-#define MAX_PROMPT_LEN 256
+#define MAX_PROMPT_LEN 512
+#define MAX_HISTORY 100
 
 ///Enum for readable argument indices (use where required)
 enum ArgIndex
@@ -71,17 +75,23 @@ int is_cd(char line[]);
 /// Executes the 'cd' built-in command and updates lwd
 void run_cd(char *args[], int argsc, char lwd[]);
 
-/// Splits multi-command statements and performs actions sequentially 
+/// Splits multi-command statements on top-level ';' for sequential execution 
 void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count);
 
 /// checking if a subshell is needed
-int is_subshell(char line[]); // like is_cd() returns 1 if the command batch is a subsheel (...)
+int is_subshell(char line[]); // like is_cd() returns 1 if the command batch is a subshell (...)
 
-/// launches a subshell of main()
+/// launches a child s3 shell process to execute a subshell command
 void launch_subshell(char line[], char shell_path[]);
 
 /// helper function to find parenthesis in command
 int find_subshell_bounds(char line[], int *start, int *end);
+
+/// helper function for expanding glob wildcard inputs (* and ?)
+void expand_globs(char *args[], int *argsc);
+
+/// helper functions for history features
+void add_to_history(char line[]);
 /// ===========================================================================
 /// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
 /// (Add Person 1 / Advait function declarations below)

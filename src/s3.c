@@ -1,38 +1,146 @@
 #include "s3.h"
-
+static char history[MAX_HISTORY][MAX_LINE];
+static int counter = 0;
 /// ===========================================================================
 /// PERSON 2 (Srivathsan): Prompt & cd (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
 /// ===========================================================================
 
 ///Simple for now, but will be expanded in a following section
-void construct_shell_prompt(char shell_prompt[], char lwd[])
-{
-    char cwd[MAX_PROMPT_LEN - 7];
+void construct_shell_prompt(char shell_prompt[], char lwd[]){
+    // get current working directory to display in shell 
+    char cwd[256]; 
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         strcpy(cwd, lwd);
     }
-    snprintf(shell_prompt, MAX_PROMPT_LEN, "[%s s3]$ ", cwd);
+    // check if command is being entered by user or by script
+    if (isatty(STDIN_FILENO) == 0){ // if a script is entering the command then keep simple prompt style
+        snprintf(shell_prompt, MAX_PROMPT_LEN, "[%s s3]$ ", cwd);
+    }else{ // show custom prompt when user is using shell
+        char *user = getenv("USER");
+        char *home = getenv("HOME");
+        char display_cwd[256];
+
+        if (home != NULL){ // error handling for truncating home
+            size_t home_len = strlen(home);
+            if ((strncmp(cwd, home, home_len) == 0) && ((cwd[home_len] == '/') || (cwd[home_len] == '\0'))){ // find and replace home directory
+                strcpy(display_cwd, "~");
+                strcat(display_cwd, &cwd[home_len]);
+            }else{
+                strcpy(display_cwd, cwd);
+            }
+        }else{
+            strcpy(display_cwd, cwd);
+        }
+
+        if (user == NULL){ // error handling for adding username
+            user = "user";
+        }
+
+        char host[64];
+        if(gethostname(host, sizeof(host)) < 0){ // error handling for hostname
+            strcpy(host, "localhost");
+        }
+        // format custom prompt into shell_prompt buffer
+        snprintf(shell_prompt, MAX_PROMPT_LEN, "\033[0;33m[\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0;33m s3]$\033[0m ", user, host, display_cwd);
+    }
 }
 
+struct termios orig_term; // stores terminal attributes used for up/down arrow and tab
+struct termios raw_term;
 ///Prints a shell prompt and reads input from the user
-void read_command_line(char line[], char lwd[])
-{
+void read_command_line(char line[], char lwd[]){
     char shell_prompt[MAX_PROMPT_LEN];
-    construct_shell_prompt(shell_prompt, lwd);
+    construct_shell_prompt(shell_prompt, lwd); // build shell prompt string
     printf("%s", shell_prompt);
 
-    ///See man page of fgets(...)
-    if (fgets(line, MAX_LINE, stdin) == NULL)
-    {
-        perror("fgets failed");
-        exit(1);
+    if (isatty(STDIN_FILENO) == 0){ // check if a script is using shell or user
+        if (fgets(line, MAX_LINE, stdin) == NULL){ // use legacy method for scripts/pipes
+            perror("fgets failed");
+            exit(1);
+        }
+        ///Remove newline (enter)
+        line[strlen(line) - 1] = '\0';
+    }else{ 
+        /// the user has entered a command 
+        tcgetattr(STDIN_FILENO, &orig_term); // store terminal attributes before checking for arrow keys
+        raw_term = orig_term;
+        raw_term.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+        int len = 0;
+        int hist_idx = counter;
+        line[0] = '\0';
+
+        while (1){ // loop until user enters a command
+            int c = getchar();
+            if (c == '\n'){ //user presses enter to start new command
+                line[len] = '\0';
+                putchar('\n');
+                break;
+            }else if (c == 127 || c == '\b'){ // remove characters when backspace is entered
+                if (len > 0){
+                    len--;
+                    line[len] = '\0';
+                    printf("\b \b");
+                }
+            }else if (c == '\033'){ // arrow keys pressed 
+                int d = getchar();
+                if (d == '['){
+                    int e = getchar();
+                    if ((e == 'A') && (hist_idx > 0)){ // up arrow go to previous command
+                        hist_idx--;
+                        strcpy(line, history[hist_idx]);
+                        len = strlen(line);
+                        printf("\r\033[K%s%s", shell_prompt, line); //output command
+                    }else if ((e == 'B') && (hist_idx < counter)){ // down arrow go to next command
+                        hist_idx++;
+                        if (hist_idx == counter){ // no next commands just output empty string
+                            line[0] = '\0';
+                            len = 0;
+                        }else{
+                            strcpy(line, history[hist_idx]);
+                            len = strlen(line);
+                        }
+
+                        printf("\r\033[K%s%s", shell_prompt, line); // output command
+                    }
+                }
+            }else if (c == '\t'){ // tab entered try to complete command
+                int start = len; // start from the back 
+                while (start > 0 && line[start - 1] != ' '){ // grab the start index of the latest word
+                    start--;
+                } 
+                if (start < len){ // glob to find matching file/folder names for the word typed 
+                    char pattern[MAX_LINE];
+                    strcpy(pattern, &line[start]);
+                    strcat(pattern, "*");
+                    glob_t tab_results;
+                    if (glob(pattern, 0, NULL, &tab_results) == 0){
+                        if (tab_results.gl_pathc == 1){ // found complete word to update full command
+                            strcpy(&line[start], tab_results.gl_pathv[0]);
+                            len = strlen(line);
+                        }else{ // found multiple matches to list all of them and let user continue typing current command 
+                            putchar('\n');
+                            for (size_t i = 0; i < tab_results.gl_pathc; i++){ 
+                                printf("%s ", tab_results.gl_pathv[i]);
+                            }
+                            putchar('\n');
+                        }
+                        globfree(&tab_results); // release glob
+                        printf("\r\033[K%s%s", shell_prompt, line); //update output
+                    }
+                }
+            }else{ // normal ASCII character entered so display it 
+                line[len++] = c;
+                line[len] = '\0';
+                putchar(c);
+            }
+        }
+        tcsetattr(STDIN_FILENO, TCSANOW, &orig_term); // restore previous terminal attributes
     }
-    ///Remove newline (enter)
-    line[strlen(line) - 1] = '\0';
+    add_to_history(line); // append current command to history
 }
 
-void parse_command(char line[], char *args[], int *argsc)
-{
+void parse_command(char line[], char *args[], int *argsc){
     ///Implements simple tokenization (space delimited)
     ///Note: strtok puts '\0' (null) characters within the existing storage, 
     ///to split it into logical cstrings.
@@ -49,12 +157,10 @@ void parse_command(char line[], char *args[], int *argsc)
     
     args[*argsc] = NULL; ///args must be null terminated
 
-
-
+    expand_globs(args, argsc); 
 }
 
 /// (Add additional Srivathsan / Person 2 functions below)
-
 void init_lwd(char lwd[]){
     if (getcwd(lwd, MAX_PROMPT_LEN - 6) == NULL){ //writes getcwd to lwd
         perror("getcwd failed"); // 
@@ -98,7 +204,7 @@ void run_cd(char *args[], int argsc, char lwd[]){
     }
 }
 
-void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count) {
+void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count){
     int i = 0;
     int shell_depth = 0; //tracks the need for subshells
     //initialisation of parameters
@@ -176,6 +282,48 @@ int find_subshell_bounds(char line[], int *start, int *end){
     }
     return 0;
 }
+
+void expand_globs(char *args[], int *argsc){
+    // create new copy of args and argsc to store glob outputs
+    char *new_args[MAX_ARGS];
+    int new_argsc = 0;
+    for (int i = 0; i < *argsc; i++){ // loop through each token
+        glob_t results;
+        if (strchr(args[i], '*') != NULL || strchr(args[i], '?') != NULL){ // if * or ? is found
+            if (glob(args[i], GLOB_NOCHECK, NULL, &results) == 0){ // use glob() function
+                for (size_t j = 0; j < results.gl_pathc; j++){
+                    new_args[new_argsc++] = strdup(results.gl_pathv[j]); // append args with glob results
+                }
+                globfree(&results);
+            }
+        }else{
+            new_args[new_argsc++] = args[i]; // if * or ? is not found then append the current token
+        }
+    }
+
+    //update args and argsc 
+    for (int i = 0; i < new_argsc; i++) { 
+        args[i] = new_args[i];
+    }
+    *argsc = new_argsc;
+
+    args[*argsc] = NULL;
+}  
+
+void add_to_history(char line[]){
+    int i = 0; //getting rid of leading spaces
+    while (line[i] == ' ') {
+        i++;
+    }
+    // check if the first non-space character is not \0
+    if (line[i] != '\0'){
+        if (counter < MAX_HISTORY){
+           strcpy(history[counter++], &line[i]);
+        }
+    }
+}
+
+
 /// ===========================================================================
 /// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
 /// ===========================================================================

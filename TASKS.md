@@ -132,9 +132,9 @@
 
 ### Candidate Stretch Goals (Select 1–2+ as a Pair)
 - [ ] **Combined Input & Output Redirection (Advait - Person 1):** Support `<` and `>`/`>>` in the same command (e.g. `sort < txt/phrases.txt > txt/sorted_output.txt`)
-- [ ] **Wildcard Globbing (Srivathsan - Person 2):** Expand `*` and `?` filename patterns in command arguments
+- [x] **Wildcard Globbing (Srivathsan - Person 2):** Expand `*` and `?` filename patterns in command arguments
 - [ ] **Job Control (Advait - Person 1):** Background execution (`&`) and `fg` / `bg` built-ins
-- [ ] **Usability Enhancements (Srivathsan - Person 2):** Command history, tab completion, or enhanced custom prompt
+- [x] **Usability Enhancements (Srivathsan - Person 2):** Command history, tab completion, or enhanced custom prompt
 - [ ] **Stream Routing:** `tee`-like multi-output syntax
 
 ### Final Code Quality & Submission Checklist (Both)
