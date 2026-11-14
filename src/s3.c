@@ -5,10 +5,9 @@ static int counter = 0;
 /// PERSON 2 (Srivathsan): Prompt & cd (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
 /// ===========================================================================
 
-///Simple for now, but will be expanded in a following section
 void construct_shell_prompt(char shell_prompt[], char lwd[]){
     // get current working directory to display in shell 
-    char cwd[256]; 
+    char cwd[MAX_PATH_LEN]; 
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         strcpy(cwd, lwd);
     }
@@ -18,7 +17,7 @@ void construct_shell_prompt(char shell_prompt[], char lwd[]){
     }else{ // show custom prompt when user is using shell
         char *user = getenv("USER");
         char *home = getenv("HOME");
-        char display_cwd[256];
+        char display_cwd[MAX_PATH_LEN];
 
         if (home != NULL){ // error handling for truncating home
             size_t home_len = strlen(home);
@@ -45,8 +44,96 @@ void construct_shell_prompt(char shell_prompt[], char lwd[]){
     }
 }
 
-struct termios orig_term; // stores terminal attributes used for up/down arrow and tab
-struct termios raw_term;
+static struct termios orig_term; // stores terminal attributes used for up/down arrow and tab
+static struct termios raw_term;
+
+///Handles Up/Down arrow ANSI escape sequences to navigate command history
+static void handle_history_arrows(char line[], int *len, int *hist_idx, const char shell_prompt[]){
+    int d = getchar();
+    if (d == '['){
+        int e = getchar();
+        if ((e == 'A') && (*hist_idx > 0)){ // up arrow go to previous command
+            (*hist_idx)--;
+            strcpy(line, history[*hist_idx]);
+            *len = strlen(line);
+            printf("\r\033[K%s%s", shell_prompt, line); //output command
+        }else if ((e == 'B') && (*hist_idx < counter)){ // down arrow go to next command
+            (*hist_idx)++;
+            if (*hist_idx == counter){ // no next commands just output empty string
+                line[0] = '\0';
+                *len = 0;
+            }else{
+                strcpy(line, history[*hist_idx]);
+                *len = strlen(line);
+            }
+            printf("\r\033[K%s%s", shell_prompt, line); // output command
+        }
+    }
+}
+
+///Applies a single Tab match inline or prints multiple matches and redraws the prompt
+static void apply_tab_matches(char line[], int *len, int start, const char shell_prompt[], const char * const matches[], size_t count){
+    if (count == 0){
+        return;
+    }
+    if (count == 1){ // single match: complete word inline
+        if ((size_t)start + strlen(matches[0]) < (size_t)MAX_LINE){
+            strcpy(&line[start], matches[0]);
+            *len = strlen(line);
+        }
+    }else{ // multiple matches: list all candidates on a new line
+        putchar('\n');
+        for (size_t i = 0; i < count; i++){
+            printf("%s ", matches[i]);
+        }
+        putchar('\n');
+    }
+    printf("\r\033[K%s%s", shell_prompt, line);
+}
+
+///Handles Tab completion for the current word under the cursor
+static void handle_tab_completion(char line[], int *len, const char shell_prompt[]){
+    int start = *len; // start from the back
+    while (start > 0 && line[start - 1] != ' '){ // grab the start index of the latest word
+        start--;
+    }
+    if (start < *len){
+        //command search 
+        int prev = start - 1;
+        while (prev >= 0 && line[prev] == ' '){
+            prev--;
+        }
+        if ((prev < 0 || line[prev] == ';' || line[prev] == '|' || line[prev] == '(') && (strchr(&line[start], '/') == NULL)){
+            static const char *commands[] = {
+                "cal", "cat", "cd", "chmod", "clear", "cp", "date", "echo",
+                "exit", "gcc", "grep", "head", "less", "ls", "man", "mkdir",
+                "ps", "pwd", "sort", "tac", "touch", "tr", "uniq", "wc", "whoami"
+            };
+            size_t num_cmds = sizeof(commands) / sizeof(commands[0]);
+            size_t prefix_len = strlen(&line[start]);
+            const char *matches[32];
+            size_t match_count = 0;
+
+            for (size_t i = 0; i < num_cmds; i++){
+                if (strncmp(commands[i], &line[start], prefix_len) == 0){
+                    matches[match_count++] = commands[i];
+                }
+            }
+
+            apply_tab_matches(line, len, start, shell_prompt, matches, match_count);
+        }else{
+            // glob to find matching file/folder names for the word typed
+            char pattern[MAX_LINE];
+            snprintf(pattern, sizeof(pattern), "%s*", &line[start]);
+            glob_t tab_results;
+            if (glob(pattern, 0, NULL, &tab_results) == 0){
+                apply_tab_matches(line, len, start, shell_prompt, (const char * const *)tab_results.gl_pathv, tab_results.gl_pathc);
+                globfree(&tab_results); // release glob
+            }
+        }
+    }
+}
+
 ///Prints a shell prompt and reads input from the user
 void read_command_line(char line[], char lwd[]){
     char shell_prompt[MAX_PROMPT_LEN];
@@ -55,11 +142,17 @@ void read_command_line(char line[], char lwd[]){
 
     if (isatty(STDIN_FILENO) == 0){ // check if a script is using shell or user
         if (fgets(line, MAX_LINE, stdin) == NULL){ // use legacy method for scripts/pipes
+            if (feof(stdin)){
+                exit(0);
+            }
             perror("fgets failed");
             exit(1);
         }
         ///Remove newline (enter)
-        line[strlen(line) - 1] = '\0';
+        size_t n = strlen(line);
+        if (n > 0 && line[n - 1] == '\n'){
+            line[n - 1] = '\0';
+        }
     }else{ 
         /// the user has entered a command 
         tcgetattr(STDIN_FILENO, &orig_term); // store terminal attributes before checking for arrow keys
@@ -72,7 +165,13 @@ void read_command_line(char line[], char lwd[]){
 
         while (1){ // loop until user enters a command
             int c = getchar();
-            if (c == '\n'){ //user presses enter to start new command
+            if (c == EOF || c == 4){ // handle Ctrl+D or EOF
+                if (c == EOF || len == 0){
+                    tcsetattr(STDIN_FILENO, TCSANOW, &orig_term); // restore previous terminal attributes
+                    putchar('\n');
+                    exit(0);
+                }
+            }else if (c == '\n'){ //user presses enter to start new command
                 line[len] = '\0';
                 putchar('\n');
                 break;
@@ -82,57 +181,16 @@ void read_command_line(char line[], char lwd[]){
                     line[len] = '\0';
                     printf("\b \b");
                 }
-            }else if (c == '\033'){ // arrow keys pressed 
-                int d = getchar();
-                if (d == '['){
-                    int e = getchar();
-                    if ((e == 'A') && (hist_idx > 0)){ // up arrow go to previous command
-                        hist_idx--;
-                        strcpy(line, history[hist_idx]);
-                        len = strlen(line);
-                        printf("\r\033[K%s%s", shell_prompt, line); //output command
-                    }else if ((e == 'B') && (hist_idx < counter)){ // down arrow go to next command
-                        hist_idx++;
-                        if (hist_idx == counter){ // no next commands just output empty string
-                            line[0] = '\0';
-                            len = 0;
-                        }else{
-                            strcpy(line, history[hist_idx]);
-                            len = strlen(line);
-                        }
-
-                        printf("\r\033[K%s%s", shell_prompt, line); // output command
-                    }
-                }
+            }else if (c == '\033'){ // arrow keys pressed
+                handle_history_arrows(line, &len, &hist_idx, shell_prompt);
             }else if (c == '\t'){ // tab entered try to complete command
-                int start = len; // start from the back 
-                while (start > 0 && line[start - 1] != ' '){ // grab the start index of the latest word
-                    start--;
-                } 
-                if (start < len){ // glob to find matching file/folder names for the word typed 
-                    char pattern[MAX_LINE];
-                    strcpy(pattern, &line[start]);
-                    strcat(pattern, "*");
-                    glob_t tab_results;
-                    if (glob(pattern, 0, NULL, &tab_results) == 0){
-                        if (tab_results.gl_pathc == 1){ // found complete word to update full command
-                            strcpy(&line[start], tab_results.gl_pathv[0]);
-                            len = strlen(line);
-                        }else{ // found multiple matches to list all of them and let user continue typing current command 
-                            putchar('\n');
-                            for (size_t i = 0; i < tab_results.gl_pathc; i++){ 
-                                printf("%s ", tab_results.gl_pathv[i]);
-                            }
-                            putchar('\n');
-                        }
-                        globfree(&tab_results); // release glob
-                        printf("\r\033[K%s%s", shell_prompt, line); //update output
-                    }
-                }
+                handle_tab_completion(line, &len, shell_prompt);
             }else{ // normal ASCII character entered so display it 
-                line[len++] = c;
-                line[len] = '\0';
-                putchar(c);
+                if (len < MAX_LINE -1){
+                    line[len++] = c;
+                    line[len] = '\0';
+                    putchar(c);
+                }
             }
         }
         tcsetattr(STDIN_FILENO, TCSANOW, &orig_term); // restore previous terminal attributes
@@ -141,29 +199,44 @@ void read_command_line(char line[], char lwd[]){
 }
 
 void parse_command(char line[], char *args[], int *argsc){
-    ///Implements simple tokenization (space delimited)
-    ///Note: strtok puts '\0' (null) characters within the existing storage, 
-    ///to split it into logical cstrings.
-    ///There is no dynamic allocation.
-
-    ///See the man page of strtok(...)
-    char *token = strtok(line, " ");
+    ///Tokenizes line in-place (space delimited, preserving text inside "..." or '...')
+    int i = 0;
     *argsc = 0;
-    while (token != NULL && *argsc < MAX_ARGS - 1)
-    {
-        args[(*argsc)++] = token;
-        token = strtok(NULL, " ");
+    while (line[i] != '\0' && *argsc < MAX_ARGS - 1){ 
+        while (line[i] == ' '){ // skip leading space
+            i++;
+        }
+        if (line[i] == '\0'){
+            break;
+        }
+        if (line[i] == '"' || line[i] == '\''){
+            char quote = line[i++];
+            args[(*argsc)++] = &line[i];
+            while (line[i] != '\0' && line[i] != quote){
+                i++;
+            }
+            if (line[i] == quote){
+                line[i++] = '\0';
+            }
+        }else{
+            args[(*argsc)++] = &line[i];
+            while (line[i] != '\0' && line[i] != ' '){
+                i++;
+            }
+            if (line[i] == ' '){
+                line[i++] = '\0';
+            }
+        }
     }
-    
+
     args[*argsc] = NULL; ///args must be null terminated
 
     expand_globs(args, argsc); 
 }
 
-/// (Add additional Srivathsan / Person 2 functions below)
 void init_lwd(char lwd[]){
-    if (getcwd(lwd, MAX_PROMPT_LEN - 6) == NULL){ //writes getcwd to lwd
-        perror("getcwd failed"); // 
+    if (getcwd(lwd, MAX_PATH_LEN) == NULL){ //writes getcwd to lwd
+        perror("getcwd failed");
     }
 }
 
@@ -181,13 +254,18 @@ int is_cd(char line[]){
 
 void run_cd(char *args[], int argsc, char lwd[]){
     // Save current directory
-    char temp[MAX_PROMPT_LEN - 6];
-    getcwd(temp, sizeof(temp));
+    char temp[MAX_PATH_LEN];
+    int have_cwd = (getcwd(temp, sizeof(temp)) != NULL);
 
     int rc;
     // Situation 1: cd (change to home directory)
     if ((argsc == 1) && (args[1] == NULL)){
-        rc = chdir(getenv("HOME"));
+        char *home = getenv("HOME");
+        if (home == NULL){
+            fprintf(stderr, "cd: HOME not set\n");
+            return;
+        }
+        rc = chdir(home);
     } else if ((argsc == 2) && strcmp(args[1], "-") == 0){
         // Situation 2: cd - (go back to previous lwd)
         rc = chdir(lwd);
@@ -198,55 +276,82 @@ void run_cd(char *args[], int argsc, char lwd[]){
 
     // Only update lwd if chdir succeeded (returned 0)
     if (rc == 0) {
-        strcpy(lwd, temp);
+        if (have_cwd) {
+            strcpy(lwd, temp);
+        }
     } else {
         perror("cd failed");
     }
 }
 
-void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count){
+/// Splits line in-place on delim only outside quotes and subshell parentheses
+static void split_top_level(char line[], char delim, char *parts[], int *count){
     int i = 0;
-    int shell_depth = 0; //tracks the need for subshells
-    //initialisation of parameters
-    *batch_count = 0;
-    batch_cmds[(*batch_count)++] = &line[0];
+    int shell_depth = 0;
+    int in_single = 0;
+    int in_double = 0;
 
-    while (line[i] != '\0') { //looping until command terminates
-        if (line[i] == '(') { //found subshell
-            shell_depth++;
-        } else if (line[i] == ')') { //end of subshell
-            shell_depth--;
-        } else if (line[i] == ';' && shell_depth == 0 && *batch_count < MAX_ARGS - 1) { //normal sec5 operation
-            line[i] = '\0';
-            batch_cmds[(*batch_count)++] = &line[i + 1]; // start of the next command
+    *count = 0;
+    parts[(*count)++] = &line[0];
+
+    while (line[i] != '\0') {
+        if (line[i] == '\'' && !in_double) {
+            in_single = !in_single;
+        } else if (line[i] == '"' && !in_single) {
+            in_double = !in_double;
+        } else if (!in_single && !in_double) {
+            if (line[i] == '(') {
+                shell_depth++;
+            } else if (line[i] == ')' && shell_depth > 0) {
+                shell_depth--;
+            } else if (line[i] == delim && shell_depth == 0 && *count < MAX_ARGS - 1) {
+                line[i] = '\0';
+                parts[(*count)++] = &line[i + 1];
+            }
         }
         i++;
     }
-    batch_cmds[*batch_count] = NULL; //terminate list
+    parts[*count] = NULL;
+}
+
+void parse_batched_commands(char line[], char *batch_cmds[], int *batch_count){
+    split_top_level(line, ';', batch_cmds, batch_count);
 }
 
 int is_subshell(char line[]){
-   int start, end;
+    int start, end;
     return find_subshell_bounds(line, &start, &end);
 }
 
-void launch_subshell(char line[], char shell_path[]){
-    
+/// Parses `(inner) [redir]` into subshell argv and redirection.
+/// Returns 1 if valid subshell, 0 if not a subshell, or -1 on invalid trailing tokens/redirection.
+static int prepare_subshell_command(char line[], char shell_path[], char *sub_args[3], Redirection *redir){
     int start, end;
-    if (find_subshell_bounds(line, &start, &end)){
-        line[end] = '\0'; // replace closing ')' with '\0'
-        char *sub_args[3] = { shell_path, &line[start + 1], NULL };
-        Redirection redir = { REDIR_NONE, NULL };
+    if (!find_subshell_bounds(line, &start, &end)){
+        return 0;
+    }
+    line[end] = '\0'; // replace closing ')' with '\0'
+    sub_args[0] = shell_path;
+    sub_args[1] = &line[start + 1];
+    sub_args[2] = NULL;
+    redir->type = REDIR_NONE;
+    redir->filename = NULL;
 
-        char *trail_args[MAX_ARGS];
-        int trail_argsc = 0;
-        parse_command(&line[end + 1], trail_args, &trail_argsc);
-        if (trail_argsc > 0) {
-            if (parse_redirection(trail_args, &trail_argsc, &redir) < 0 || trail_argsc > 0) {
-                return;
-            }
+    char *trail_args[MAX_ARGS];
+    int trail_argsc = 0;
+    parse_command(&line[end + 1], trail_args, &trail_argsc);
+    if (trail_argsc > 0){
+        if (parse_redirection(trail_args, &trail_argsc, redir) < 0 || trail_argsc > 0){
+            return -1;
         }
+    }
+    return 1;
+}
 
+void launch_subshell(char line[], char shell_path[]){
+    char *sub_args[3];
+    Redirection redir;
+    if (prepare_subshell_command(line, shell_path, sub_args, &redir) == 1){
         launch_program(sub_args, 2, &redir);
     }
 }
@@ -284,15 +389,26 @@ int find_subshell_bounds(char line[], int *start, int *end){
 }
 
 void expand_globs(char *args[], int *argsc){
+    static char *glob_allocs[MAX_ARGS];
+    static int glob_alloc_count = 0;
+    for (int i = 0; i < glob_alloc_count; i++) {
+        free(glob_allocs[i]);
+    }
+    glob_alloc_count = 0;
+
     // create new copy of args and argsc to store glob outputs
     char *new_args[MAX_ARGS];
     int new_argsc = 0;
-    for (int i = 0; i < *argsc; i++){ // loop through each token
+    for (int i = 0; i < *argsc && new_argsc < MAX_ARGS - 1; i++){ // loop through each token
         glob_t results;
         if (strchr(args[i], '*') != NULL || strchr(args[i], '?') != NULL){ // if * or ? is found
             if (glob(args[i], GLOB_NOCHECK, NULL, &results) == 0){ // use glob() function
-                for (size_t j = 0; j < results.gl_pathc; j++){
-                    new_args[new_argsc++] = strdup(results.gl_pathv[j]); // append args with glob results
+                for (size_t j = 0; j < results.gl_pathc && new_argsc < MAX_ARGS - 1; j++){
+                    char *dup = strdup(results.gl_pathv[j]);
+                    if (dup != NULL) {
+                        glob_allocs[glob_alloc_count++] = dup;
+                        new_args[new_argsc++] = dup; // append args with glob results
+                    }
                 }
                 globfree(&results);
             }
@@ -331,12 +447,8 @@ void add_to_history(char line[]){
 ///Launch related functions
 void child(char *args[], int argsc)
 {
-    ///Implement this function:
-
-    ///Use execvp to load the binary 
-    ///of the command specified in args[ARG_PROGNAME].
-    ///For reference, see the code in lecture 3.
-
+    (void)argsc;
+    ///Replace child process image with the target command binary
     execvp(args[ARG_PROGNAME], args);
     // wont reach the code below if execvp successful
     perror("execvp");
@@ -345,17 +457,11 @@ void child(char *args[], int argsc)
 
 void launch_program(char *args[], int argsc, Redirection *redir)
 {
-    ///Implement this function:
-
-    ///fork() a child process.
-    ///In the child part of the code,
-    ///call child(args, argv)
-    ///For reference, see the code in lecture 2.
-
     if (args[ARG_PROGNAME] == NULL) {
         return;
     }
     else {
+        ///Handle 'exit' in parent shell so the shell itself exits
         if (strcmp(args[ARG_PROGNAME], "exit") == 0) {
             exit(EXIT_SUCCESS);
         }
@@ -375,13 +481,7 @@ void launch_program(char *args[], int argsc, Redirection *redir)
             }
         }
     }
-
-    ///Handle the 'exit' command;
-    ///so that the shell, not the child process,
-    ///exits.
 }
-
-/// (Add additional Advait / Person 1 functions below)
 
 int parse_redirection(char *args[], int *argsc, Redirection *redir) {
     redir->filename = NULL;
@@ -390,14 +490,10 @@ int parse_redirection(char *args[], int *argsc, Redirection *redir) {
     int num_redir_tokens_seen = 0;
     int redir_index = -1;
 
-    int comp_output = 0;
-    int comp_input = 0;
-    int comp_append = 0;
-
     for (int i = 0; i < *argsc; i++) {
-        comp_output = strcmp(">", args[i]);
-        comp_input = strcmp("<", args[i]);
-        comp_append = strcmp(">>", args[i]);
+        int comp_output = strcmp(">", args[i]);
+        int comp_input = strcmp("<", args[i]);
+        int comp_append = strcmp(">>", args[i]);
 
         if (comp_output == 0 || comp_input == 0 || comp_append == 0) {
             if (i + 1 >= *argsc) { // no filename given
@@ -483,52 +579,7 @@ int apply_redirection(const Redirection *redir) {
     return (dup_status <  0) ? -1 : 0;
 }
 
-int parse_pipe(char *args[], int *argsc, char **commands[], int *num_commands) {
-    *num_commands = 0; // ensuring its initialised
-    if (*argsc == 0) return 0; // skip launching a process
-    *num_commands = 1;
-    commands[0] = &args[0];
-    for (int i = 0; i < *argsc; i++) {
-        if (strcmp(args[i], "|") == 0) {
-            if (i == 0) {
-                // invalid
-                fprintf(stderr, "shell: malformed pipeline\n");
-                return -1;
-            }
-            else if (i == *argsc - 1) {
-                // invalid
-                fprintf(stderr, "shell: malformed pipeline\n");
-                return -1;
-            }
-            else if (strcmp(args[i + 1], "|") == 0) {
-                // invalid
-                fprintf(stderr, "shell: malformed pipeline\n");
-                return -1;
-            }
-            commands[*num_commands] = &args[i + 1];
-            (*num_commands)++;
-        }
-    }
-
-    for (int i = 1; i < *num_commands; i++) {
-        *(commands[i] - 1) = NULL;
-    }
-
-    return 0;
-}
-
-
-int count_args(char *args[]) {
-    int n = 0;
-    while (args[n] != NULL) {
-        n++;
-    }
-    return n;
-}
-
 int parse_pipe_stages(char line[], char *pipe_stages[], int *num_stages) {
-    int i = 0;
-    int shell_depth = 0;
     *num_stages = 0;
 
     int k = 0;
@@ -537,20 +588,7 @@ int parse_pipe_stages(char line[], char *pipe_stages[], int *num_stages) {
         return 0;
     }
 
-    pipe_stages[(*num_stages)++] = &line[0];
-
-    while (line[i] != '\0') {
-        if (line[i] == '(') {
-            shell_depth++;
-        } else if (line[i] == ')') {
-            shell_depth--;
-        } else if (line[i] == '|' && shell_depth == 0 && *num_stages < MAX_ARGS - 1) {
-            line[i] = '\0';
-            pipe_stages[(*num_stages)++] = &line[i + 1];
-        }
-        i++;
-    }
-    pipe_stages[*num_stages] = NULL;
+    split_top_level(line, '|', pipe_stages, num_stages);
 
     if (*num_stages > 1) {
         for (int s = 0; s < *num_stages; s++) {
@@ -565,6 +603,50 @@ int parse_pipe_stages(char line[], char *pipe_stages[], int *num_stages) {
     return 0;
 }
 
+/// Wires pipe descriptors and executes a single pipeline stage in the child process.
+static void run_pipeline_child(char *stage, int prev_read_fd, int pipefd[2], int is_last, char shell_path[]) {
+    if (prev_read_fd != -1) {
+        if (dup2(prev_read_fd, STDIN_FILENO) == -1) {
+            perror("connection to current stdin failed");
+            _exit(EXIT_FAILURE);
+        }
+        close(prev_read_fd);
+    }
+
+    if (!is_last) {
+        if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+            perror("connection to current stdout failed");
+            _exit(EXIT_FAILURE);
+        }
+        close(pipefd[0]);
+        close(pipefd[1]);
+    }
+
+    char *sub_args[3];
+    Redirection stage_redir;
+    int sub_rc = prepare_subshell_command(stage, shell_path, sub_args, &stage_redir);
+    if (sub_rc < 0) {
+        _exit(EXIT_FAILURE);
+    } else if (sub_rc == 1) {
+        if (apply_redirection(&stage_redir) < 0) {
+            _exit(EXIT_FAILURE);
+        }
+        child(sub_args, 2);
+    } else {
+        char *stage_args[MAX_ARGS];
+        int stage_argsc = 0;
+        parse_command(stage, stage_args, &stage_argsc);
+        if (parse_redirection(stage_args, &stage_argsc, &stage_redir) < 0) {
+            _exit(EXIT_FAILURE);
+        }
+        if (apply_redirection(&stage_redir) < 0) {
+            _exit(EXIT_FAILURE);
+        }
+        child(stage_args, stage_argsc);
+    }
+    _exit(EXIT_FAILURE);
+}
+
 int launch_pipeline_stages(char *pipe_stages[], int num_stages, char shell_path[]) {
     int prev_read_fd = -1;
     int pipefd[2];
@@ -575,89 +657,29 @@ int launch_pipeline_stages(char *pipe_stages[], int num_stages, char shell_path[
     for (int i = 0; i < num_stages; i++) {
         int is_last = (i == num_stages - 1);
 
-        if (is_last == 0) {
-            if (pipe(pipefd) == -1) {
-                perror("pipe failed");
-                error = -1;
-                break;
-            }
+        if (!is_last && pipe(pipefd) == -1) {
+            perror("pipe failed");
+            error = -1;
+            break;
         }
 
         int rc = fork();
-
-        if (rc == 0) { // child
-            if (prev_read_fd != -1) {
-                if (dup2(prev_read_fd, STDIN_FILENO) == -1) {
-                    perror("connection to current stdin failed");
-                    _exit(EXIT_FAILURE);
-                }
-            }
-
-            if (is_last == 0) {
-                if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
-                    perror("connection to current stdout failed");
-                    _exit(EXIT_FAILURE);
-                }
-            }
+        if (rc == 0) {
+            run_pipeline_child(pipe_stages[i], prev_read_fd, pipefd, is_last, shell_path);
+        } else if (rc > 0) {
+            pids[launched++] = rc;
             if (prev_read_fd != -1) {
                 close(prev_read_fd);
             }
-
             if (!is_last) {
-                close(pipefd[0]);
-                close(pipefd[1]);
-            }
-
-            int start, end;
-            if (find_subshell_bounds(pipe_stages[i], &start, &end)) {
-                pipe_stages[i][end] = '\0';
-                char *trail_args[MAX_ARGS];
-                int trail_argsc = 0;
-                Redirection stage_redir = { REDIR_NONE, NULL };
-                parse_command(&pipe_stages[i][end + 1], trail_args, &trail_argsc);
-                if (trail_argsc > 0) {
-                    if (parse_redirection(trail_args, &trail_argsc, &stage_redir) < 0 || trail_argsc > 0) {
-                        _exit(EXIT_FAILURE);
-                    }
-                    if (apply_redirection(&stage_redir) < 0) {
-                        _exit(EXIT_FAILURE);
-                    }
-                }
-                char *sub_args[3] = { shell_path, &pipe_stages[i][start + 1], NULL };
-                child(sub_args, 2);
-            } else {
-                char *stage_args[MAX_ARGS];
-                int stage_argsc = 0;
-                parse_command(pipe_stages[i], stage_args, &stage_argsc);
-                Redirection stage_redir;
-                if (parse_redirection(stage_args, &stage_argsc, &stage_redir) < 0) {
-                    _exit(EXIT_FAILURE);
-                }
-                if (apply_redirection(&stage_redir) < 0) {
-                    _exit(EXIT_FAILURE);
-                }
-                child(stage_args, stage_argsc);
-            }
-            _exit(EXIT_FAILURE);
-        }
-        else if (rc > 0) { // parent
-            pids[launched] = rc;
-            launched++;
-
-            if (prev_read_fd != -1) {
-                close(prev_read_fd);
-            }
-
-            if (is_last == 0) {
                 close(pipefd[1]);
                 prev_read_fd = pipefd[0];
             } else {
                 prev_read_fd = -1;
             }
-        }
-        else {
+        } else {
             perror("fork");
-            if (is_last == 0) {
+            if (!is_last) {
                 close(pipefd[0]);
                 close(pipefd[1]);
             }

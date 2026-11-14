@@ -138,7 +138,7 @@
 - [ ] **Stream Routing:** `tee`-like multi-output syntax
 
 ### Final Code Quality & Submission Checklist (Both)
-- [ ] Compile with `gcc -Wall -Wextra -g *.c -o s3` and resolve all compiler warnings
-- [ ] Review code for functional decomposition, consistent naming, and clear comments
-- [ ] Update `README.md` with final documentation of implemented features and stretch extensions
-- [ ] Ensure no temporary test files or compiled binaries are tracked in Git (`git status` is clean)
+- [x] Compile with `gcc -Wall -Wextra -g *.c -o s3` and resolve all compiler warnings
+- [x] Review code for functional decomposition, consistent naming, and clear comments
+- [x] Update `README.md` with final documentation of implemented features and stretch extensions
+- [x] Ensure no temporary test files or compiled binaries are tracked in Git (`git status` is clean)

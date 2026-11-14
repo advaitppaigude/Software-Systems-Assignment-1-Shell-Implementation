@@ -18,7 +18,8 @@
 ///Constants for array sizes, defined for clarity and code readability
 #define MAX_LINE 1024
 #define MAX_ARGS 128
-#define MAX_PROMPT_LEN 512
+#define MAX_PATH_LEN 512
+#define MAX_PROMPT_LEN 1024
 #define MAX_HISTORY 100
 
 ///Enum for readable argument indices (use where required)
@@ -62,10 +63,8 @@ void parse_command(char line[], char *args[], int *argsc);
 
 /// ===========================================================================
 /// PERSON 2 (Srivathsan): cd & Prompt (Sec 3), Batched Commands (Sec 5), Subshells (Sec 6-7)
-/// (Add Person 2 / Srivathsan function declarations below)
 /// ===========================================================================
 
-/// cd is goes into or out of a directory
 /// Initializes lwd with the starting current working directory (using getcwd)
 void init_lwd(char lwd[]);
 
@@ -94,21 +93,18 @@ void expand_globs(char *args[], int *argsc);
 void add_to_history(char line[]);
 /// ===========================================================================
 /// PERSON 1 (Advait): Basic Execution (Sec 1), Redirection (Sec 2), Pipelines (Sec 4)
-/// (Add Person 1 / Advait function declarations below)
 /// ===========================================================================
 
-///Child functions (add more as appropriate)
+///Child functions
 void child(char *args[], int argsc);
 
-///Program launching functions (add more as appropriate)
+///Program launching functions
 void launch_program(char *args[], int argsc, Redirection *redir);
 
 
 int parse_redirection(char *args[], int *argsc, Redirection *redir);
 int apply_redirection(const Redirection *redir);
 
-int parse_pipe(char *args[], int *argsc, char **commands[], int *num_commands);
-int count_args(char *args[]);
 int parse_pipe_stages(char line[], char *pipe_stages[], int *num_stages);
 int launch_pipeline_stages(char *pipe_stages[], int num_stages, char shell_path[]);
 

@@ -15,8 +15,9 @@ This repository contains the implementation of **`s3` (Software Systems Shell)**
 │   ├── s3.c                # Implementation of shell parsing, built-ins, redirection, and execution
 │   └── txt/
 │       └── phrases.txt     # Sample text file for testing shell commands
-├── testing/                # Automated regression & verification test suite
-│   └── test_sec0_to_7.sh   # Master automated test suite (Sections 0–7, 62 tests)
+├── testing/                # Automated regression & verification test suites
+│   ├── test_sec0_to_7.sh   # Master automated test suite (Sections 0–7, 62 tests)
+│   └── test_sec8_globbing.sh # Section 8 Stretch Goals test suite (Globbing & Usability, 26 tests)
 ├── assistance/             # Concept & system call study guides for Sections 1–8
 ├── TASKS.md                # Interactive sprint & test checklist
 └── README.md
@@ -36,7 +37,8 @@ gcc *.c -o s3
 From the repository root:
 
 ```bash
-./testing/test_sec0_to_7.sh  # Runs all 62 tests covering Sections 0–7 (Core 70%)
+./testing/test_sec0_to_7.sh     # Runs all 62 tests covering Sections 0–7 (Core 70%)
+./testing/test_sec8_globbing.sh # Runs all 26 tests covering Section 8 Stretch Goals
 ```
 
 ---
@@ -46,7 +48,7 @@ From the repository root:
 ### 1. Section 1: Basic Command Execution & Process Lifecycle
 - **Command Reading & Tokenization (`read_command_line`, `parse_command`):**
   - Reads user input lines via `fgets()` into a fixed buffer (`MAX_LINE`) and strips the trailing newline `'\n'`.
-  - Tokenizes space-delimited arguments in-place using `strtok(line, " ")` into a `NULL`-terminated `char *args[MAX_ARGS]` vector with argument count `argsc`.
+  - Tokenizes arguments in-place (space-delimited while preserving whitespace inside `"..."` and `'...'` quotes and stripping surrounding quotes) into a `NULL`-terminated `char *args[MAX_ARGS]` vector with argument count `argsc`, then calls `expand_globs(args, argsc)` to expand any `*`/`?` wildcards.
 - **Built-in `exit` & Empty Input Handling (`launch_program`):**
   - Empty or whitespace-only inputs (`args[ARG_PROGNAME] == NULL`) return immediately without spawning a child process.
   - When `strcmp(args[ARG_PROGNAME], "exit") == 0`, the parent shell calls `exit(EXIT_SUCCESS)` directly so the shell session itself terminates cleanly.
@@ -82,7 +84,7 @@ From the repository root:
   - Queries `getcwd()` before each prompt render (falling back to `lwd` if needed) and formats the prompt string via `snprintf(shell_prompt, MAX_PROMPT_LEN, "[%s s3]$ ", cwd)`.
 
 ### 4. Section 4: Commands with Pipes (`|`)
-- **Parenthesis-Aware Pipeline Splitting (`parse_pipe_stages`, `parse_pipe`):**
+- **Parenthesis-Aware Pipeline Splitting (`parse_pipe_stages`):**
   - Scans a command string character-by-character while tracking parenthesis depth (`shell_depth`) and splits on `'|'` **only when `shell_depth == 0`**, storing each stage string in `char *pipe_stages[MAX_ARGS]`. Any `'|'` inside a subshell `(...)` is preserved intact for the child subshell to execute.
   - Validates pipeline syntax and rejects empty/malformed stages (`cmd |`, `| cmd`, `cmd | | cmd`) with `shell: malformed pipeline`.
 - **Multi-Stage Pipeline Execution (`launch_pipeline_stages`):**
@@ -96,8 +98,7 @@ From the repository root:
 ### 5. Section 5: Batched Commands (`;`)
 - **Top-Level Semicolon Splitting (`parse_batched_commands`):**
   - Scans the raw command line character-by-character while maintaining a parenthesis nesting counter (`shell_depth`), incrementing on `'('` and decrementing on `')'`.
-  - Splits the line by replacing `';'` with `'\0'` **only when `shell_depth == 0`**, storing pointers to each sub-command in `char *batch_cmds[MAX_ARGS]`. Semicolons enclosed inside subshells `(...)` are preserved intact for the child subshell to parse.
-  - Because `parse_batched_commands` walks the string manually instead of calling `strtok()`, subsequent `strtok()` calls inside `parse_command()` for individual sub-commands do not clobber the batch parser's state.
+  - Splits the line by replacing `';'` with `'\0'` **only when `shell_depth == 0`**, storing pointers to each sub-command in `char *batch_cmds[MAX_ARGS]`. Semicolons enclosed inside subshells `(...)` are preserved intact for the child subshell to parse without global tokenizer state conflicts across sub-commands.
 - **Sequential Execution (`main` in `s3main.c`):**
   - Iterates over all `batch_count` commands sequentially, dispatching each one to `is_subshell()`, `is_cd()`, or `parse_pipe_stages()` / `launch_pipeline_stages()` / `launch_program()` + `reap()` regardless of whether previous commands in the batch succeeded or failed.
 
@@ -115,7 +116,7 @@ From the repository root:
 - **Wildcard Globbing (`*` and `?` via `expand_globs`):**
   - Integrated at the end of command parsing (`parse_command`). Inspects each parsed argument token for wildcard characters (`*` and `?`).
   - Uses the POSIX `<glob.h>` API with `GLOB_NOCHECK` to expand matching filenames in alphabetical order. If no matching files exist in the filesystem, `GLOB_NOCHECK` preserves the argument string literally (matching standard shell semantics).
-  - Memory allocated by `glob()` is cleanly freed via `globfree()`, and expanded path tokens are duplicated into the arguments array.
+  - Memory allocated by `glob()` is freed via `globfree()`, duplicated expanded tokens are tracked in `glob_allocs` and freed on the next expansion, and both loops enforce `MAX_ARGS - 1` bounds so large expansions do not overflow `args[]`.
   - Fully integrated across built-in `cd` (e.g. `cd t*t`), redirection (`< txt/*.txt`), multi-stage pipelines (`cat txt/*.txt | grep burn | wc -l`), and subshells (`(cd t*t ; ls *.txt)`).
 - **Usability Enhancements — Enhanced Custom Prompt (`construct_shell_prompt`):**
   - **Terminal Detection (`isatty`):** Differentiates between non-interactive scripted/piped execution and real interactive terminals via `isatty(STDIN_FILENO)`. Automated test scripts continue to receive the strict `[cwd s3]$ ` prompt format, while interactive terminal sessions receive the enhanced prompt.
@@ -124,7 +125,7 @@ From the repository root:
   - **ANSI Color Formatting:** Interactive prompt renders with distinct ANSI colors: yellow bracket and shell indicator `[... s3]$ `, bold green `user@host`, bold blue current working directory, and terminal attribute reset codes (`\033[0m`) before reading input.
 - **Usability Enhancements — Command History & Line Editing (`read_command_line`):**
   - Configures terminal attributes using `<termios.h>` to disable canonical mode (`ICANON`) and character echoing (`ECHO`) for interactive TTY sessions.
-  - **Up/Down Arrow Navigation:** Intercepts ANSI escape sequences for Up (`\033[A`) and Down (`\033[B`) arrows to navigate through the circular in-memory `history` buffer. Lines are dynamically redrawn via `\r\033[K` with prompt styling and command text. Navigating past the newest command restores a blank line.
+  - **Up/Down Arrow Navigation:** Intercepts ANSI escape sequences for Up (`\033[A`) and Down (`\033[B`) arrows to navigate through the fixed-size in-memory `history` array (up to `MAX_HISTORY` = 100 entries). Lines are dynamically redrawn via `\r\033[K` with prompt styling and command text. Navigating past the newest command restores a blank line.
   - **Backspace Support:** Handles both ASCII 127 (`DEL`) and `\b` to delete characters from the active buffer and terminal display (`\b \b`).
   - **History Filtering:** Skips blank and whitespace-only lines when appending to history via `add_to_history()`.
 - **Usability Enhancements — Interactive Tab Completion (`read_command_line`):**

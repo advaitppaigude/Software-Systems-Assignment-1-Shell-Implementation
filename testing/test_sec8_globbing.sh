@@ -184,6 +184,15 @@ else
     fail "Globbing inside subshell & batch failed" "Expected:\n$EXPECTED_GLOB_SUB\nGot:\n$OUT_GLOB_SUB"
 fi
 
+# Test 12: Large glob expansion ('echo /usr/bin/*') stays bounded within MAX_ARGS without crashing
+OUT_GLOB_LARGE=$(run_s3_raw "echo /usr/bin/*\nexit" | strip_prompts)
+RC_GLOB_LARGE=$?
+if [[ $RC_GLOB_LARGE -eq 0 && -n "$OUT_GLOB_LARGE" ]]; then
+    pass "Large glob expansion ('echo /usr/bin/*') stays safely bounded within MAX_ARGS"
+else
+    fail "Large glob expansion failed (rc=$RC_GLOB_LARGE)"
+fi
+
 # ==============================================================================
 # 5. Usability Enhancements: Enhanced Custom Prompt
 # ==============================================================================
@@ -436,14 +445,35 @@ send_and_read(b"\n")
 out_multi_tab = send_and_read(b"echo s3.\t")
 out_multi_finish = send_and_read(b"c\n")
 
-send_and_read(b"exit\n")
-proc.wait(timeout=2)
+# 4. Single-match command Tab completion at start of line: 'who\t\n' -> completes to 'whoami'
+out_cmd_single = send_and_read(b"who\t\n")
+
+# 5. Multi-match command Tab completion: 'c\t' -> lists 'cal cat cd chmod clear cp ' and redraws 'c'
+out_cmd_multi = send_and_read(b"c\t")
+send_and_read(b"\x7f\n")
+
+# 6. Command Tab completion after ';', '|', and '('
+out_cmd_semi = send_and_read(b"echo hi ; who\t\n")
+out_cmd_pipe = send_and_read(b"echo pipe_ok | gr\t pipe_ok\n")
+out_cmd_paren = send_and_read(b"( who\t)\n")
+
+# 7. Ctrl+D on non-empty line is ignored; Ctrl+D on empty line exits cleanly (rc=0)
+out_ctrld_nonempty = send_and_read(b"echo still_here\x04\n")
+out_ctrld_empty = send_and_read(b"\x04")
+ctrld_rc = proc.wait(timeout=2)
 os.close(master)
 
+whoami_expected = subprocess.check_output(["whoami"], text=True).strip()
 print("SINGLE_TAB_OK=" + str("200 txt/phrases.txt" in out_single_tab))
 print("TAB_HIST_OK=" + str("wc -l txt/phrases.txt" in out_tab_hist))
 print("MULTI_LIST_OK=" + str("s3.c s3.h " in out_multi_tab and "echo s3." in out_multi_tab))
 print("MULTI_FINISH_OK=" + str("s3.c" in out_multi_finish.splitlines()[1] if len(out_multi_finish.splitlines()) > 1 else False))
+print("CMD_SINGLE_OK=" + str("whoami" in out_cmd_single and whoami_expected in out_cmd_single))
+print("CMD_MULTI_OK=" + str("cal cat cd chmod clear cp " in out_cmd_multi))
+print("CMD_SEMI_OK=" + str("whoami" in out_cmd_semi and "hi" in out_cmd_semi and whoami_expected in out_cmd_semi))
+print("CMD_PIPE_OK=" + str("grep pipe_ok" in out_cmd_pipe and "pipe_ok" in out_cmd_pipe))
+print("CMD_PAREN_OK=" + str("( whoami)" in out_cmd_paren and whoami_expected in out_cmd_paren))
+print("CTRLD_OK=" + str("still_here" in out_ctrld_nonempty and ctrld_rc == 0))
 EOF
 )
 
@@ -469,6 +499,30 @@ if grep -q "MULTI_FINISH_OK=True" <<< "$TAB_PTY_OUT"; then
     pass "User can continue typing after multi-match Tab ('c<ENTER>' -> executes 'echo s3.c')"
 else
     fail "Continuing input after multi-match Tab failed" "$TAB_PTY_OUT"
+fi
+
+if grep -q "CMD_SINGLE_OK=True" <<< "$TAB_PTY_OUT"; then
+    pass "Single-match command Tab ('who<TAB>') auto-completes to 'whoami' and executes"
+else
+    fail "Single-match command Tab completion failed" "$TAB_PTY_OUT"
+fi
+
+if grep -q "CMD_MULTI_OK=True" <<< "$TAB_PTY_OUT"; then
+    pass "Multi-match command Tab ('c<TAB>') lists matching commands ('cal cat cd chmod cp')"
+else
+    fail "Multi-match command Tab listing failed" "$TAB_PTY_OUT"
+fi
+
+if grep -q "CMD_SEMI_OK=True" <<< "$TAB_PTY_OUT" && grep -q "CMD_PIPE_OK=True" <<< "$TAB_PTY_OUT" && grep -q "CMD_PAREN_OK=True" <<< "$TAB_PTY_OUT"; then
+    pass "Command Tab completion works after ';', '|', and '('"
+else
+    fail "Command Tab completion after ';', '|', or '(' failed" "$TAB_PTY_OUT"
+fi
+
+if grep -q "CTRLD_OK=True" <<< "$TAB_PTY_OUT"; then
+    pass "Interactive Ctrl+D is ignored on non-empty lines and exits cleanly (rc=0) on empty lines"
+else
+    fail "Interactive Ctrl+D handling failed" "$TAB_PTY_OUT"
 fi
 
 # ==============================================================================

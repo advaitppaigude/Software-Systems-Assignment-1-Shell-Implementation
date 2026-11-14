@@ -5,9 +5,9 @@ int main(int argc, char *argv[]){
     char line[MAX_LINE];
 
     ///The last (previous) working directory 
-    char lwd[MAX_PROMPT_LEN-6]; 
+    char lwd[MAX_PATH_LEN]; 
 
-    init_lwd(lwd);///Implement this function: initializes lwd with the cwd (using getcwd)
+    init_lwd(lwd); ///Initializes lwd with the starting current working directory
 
     ///Stores pointers to command arguments.
     ///The first element of the array is the command name.

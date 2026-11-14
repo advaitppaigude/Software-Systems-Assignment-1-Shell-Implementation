@@ -164,6 +164,24 @@ else
     fail "Sequential command execution order mismatch" "Got: $SEQ_OUT"
 fi
 
+# Quoted arguments preserve internal whitespace
+QUOTE_OUT=$(run_s3_raw "echo \"hello   world\"\necho 'single   spaces'\nexit" | strip_prompts)
+if [[ "$QUOTE_OUT" == $'hello   world\nsingle   spaces' ]]; then
+    pass "Quoted arguments preserve internal spaces (\"...\" and '...')"
+else
+    fail "Quoted argument space preservation failed" "Got: $QUOTE_OUT"
+fi
+
+# Non-interactive clean EOF without explicit 'exit'
+EOF_ERR=""
+EOF_OUT=$(printf "echo eof_ok\n" | (cd "$SRC_DIR" && ./s3) 2>&1)
+EOF_RC=$?
+if [[ $EOF_RC -eq 0 && "$(echo "$EOF_OUT" | strip_prompts)" == "eof_ok" ]] && ! grep -q "fgets failed" <<<"$EOF_OUT"; then
+    pass "Non-interactive piped EOF exits cleanly (rc=0) without 'exit'"
+else
+    fail "Non-interactive EOF handling failed (rc=$EOF_RC)" "$EOF_OUT"
+fi
+
 # ==============================================================================
 # PART 2: Section 2 — Input & Output Redirection (<, >, >>)
 # ==============================================================================
@@ -421,6 +439,22 @@ if gcc -Wall -Wextra -I"$SRC_DIR" "$TEST_TMP/batch_paren_test.c" "$SRC_DIR/s3.c"
     pass "Parenthesis-aware splitting: ';' inside '(...)' is not split prematurely"
 else
     fail "Parenthesis-aware splitting check failed"
+fi
+
+# Quote-aware delimiter splitting: ';' and '|' inside quotes are preserved
+OUT_QUOTED_DELIM=$(run_s3_raw "echo \"a;b|c\"\necho 'd;e|f'\nexit" | strip_prompts)
+if [[ "$OUT_QUOTED_DELIM" == $'a;b|c\nd;e|f' ]]; then
+    pass "Quote-aware splitting preserves ';' and '|' inside \"...\" and '...'"
+else
+    fail "Quote-aware delimiter splitting failed" "Got: $OUT_QUOTED_DELIM"
+fi
+
+# Unmatched ')' does not underflow depth and break subsequent ';' splitting
+OUT_UNMATCHED_PAREN=$(run_s3_raw "echo ) ; echo after_paren\nexit" | strip_prompts)
+if [[ "$OUT_UNMATCHED_PAREN" == $')\nafter_paren' ]]; then
+    pass "Unmatched ')' does not break subsequent ';' batch splitting"
+else
+    fail "Unmatched ')' batch splitting failed" "Got: $OUT_UNMATCHED_PAREN"
 fi
 
 # ==============================================================================
